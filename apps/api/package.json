@@ -7,7 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -b",
     "start": "node dist/server.js",
-    "test": "vitest run",
+    "test": "cross-env DATABASE_URL=\"file:./test.db\" prisma db push --accept-data-loss && cross-env DATABASE_URL=\"file:./test.db\" vitest run --pool=forks --no-file-parallelism",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
+    "cross-env": "^10.1.0",
     "prisma": "^5.17.0",
     "tsx": "^4.19.1",
     "typescript": "^5.5.4",
