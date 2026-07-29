@@ -8,6 +8,7 @@ coverage/
 .env
 .env.*
 !.env.example
+.bmoni-user.json
 .DS_Store
 *.sqlite
 *.sqlite-journal
