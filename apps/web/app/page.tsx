@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatMoney } from "@/lib/format";
+import { getOverview, previewInflow, type InflowPreview } from "@/lib/api";
 import {
   activity,
   savedVsBankMinor,
@@ -15,27 +16,55 @@ const riskStyles: Record<Risk, string> = {
   high: "text-danger bg-[rgba(248,113,113,0.12)]",
 };
 
-const pipelineStages = [
-  { key: "guard", label: "Guarded", note: "Verified — not the overpayment pattern" },
-  { key: "route", label: "Routed", note: "Via stablecoin — saved ₦8,400 vs bank" },
-  { key: "allocate", label: "Allocated", note: "Salary ₦180k · Rent ₦120k · Home ₦40k" },
-] as const;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export default function Dashboard() {
   const [step, setStep] = useState(-1);
   const [running, setRunning] = useState(false);
+  const [rate, setRate] = useState<number | null>(null);
+  const [preview, setPreview] = useState<InflowPreview | null>(null);
 
-  function runPipeline() {
+  // Pull the live USD/NGN rate on load.
+  useEffect(() => {
+    getOverview()
+      .then((o) => setRate(o.rate.rate))
+      .catch(() => setRate(null));
+  }, []);
+
+  const stages = [
+    { label: "Guarded", note: "Verified — not the overpayment pattern" },
+    {
+      label: "Routed",
+      note: preview
+        ? `Converted at ₦${preview.rate.toFixed(2)}/$ — saved ${formatMoney(preview.savedVsBankMinor, "NGN")} vs bank`
+        : "Routed via the cheapest path",
+    },
+    {
+      label: "Allocated",
+      note: preview
+        ? `${formatMoney(preview.receivesMinor, "NGN")} → salary, rent vault, home`
+        : "Salary ₦180k · Rent ₦120k · Home ₦40k",
+    },
+  ];
+
+  async function runPipeline() {
     if (running) return;
     setRunning(true);
     setStep(-1);
-    pipelineStages.forEach((_, i) => {
-      setTimeout(() => {
-        setStep(i);
-        if (i === pipelineStages.length - 1) setRunning(false);
-      }, 700 * (i + 1));
-    });
+    setPreview(null);
+    try {
+      setPreview(await previewInflow(500));
+    } catch {
+      // API offline — fall back to the static narrative
+    }
+    for (let i = 0; i < stages.length; i++) {
+      await sleep(650);
+      setStep(i);
+    }
+    setRunning(false);
   }
+
+  const heroSaved = preview?.savedVsBankMinor ?? savedVsBankMinor;
 
   return (
     <main className="mx-auto max-w-5xl px-5 py-8 sm:py-12">
@@ -46,20 +75,21 @@ export default function Dashboard() {
           <p className="text-sm text-muted">Your cross-border money, on autopilot.</p>
         </div>
         <span className="chip">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Sandbox · test data
+          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+          {rate ? `Live ₦${rate.toFixed(2)}/$` : "Sandbox · test data"}
         </span>
       </header>
 
       {/* Hero + pipeline */}
       <section className="mb-6 grid gap-4 md:grid-cols-5">
         <div className="card md:col-span-2 flex flex-col justify-between">
-          <span className="label">Saved vs your bank · this quarter</span>
+          <span className="label">Saved vs your bank{preview ? " · this payment" : " · this quarter"}</span>
           <div className="mt-3">
             <div className="text-4xl font-semibold tracking-tight text-gold">
-              {formatMoney(savedVsBankMinor, "NGN")}
+              {formatMoney(heroSaved, "NGN")}
             </div>
             <p className="mt-2 text-sm text-muted">
-              Smarter routing and timing on every dollar you received.
+              Smarter routing and timing on every dollar you receive.
             </p>
           </div>
         </div>
@@ -76,11 +106,11 @@ export default function Dashboard() {
             </button>
           </div>
           <ol className="mt-4 space-y-2.5">
-            {pipelineStages.map((s, i) => {
+            {stages.map((s, i) => {
               const active = step >= i;
               return (
                 <li
-                  key={s.key}
+                  key={s.label}
                   className={`flex items-start gap-3 rounded-xl border p-3 transition ${
                     active ? "border-border bg-surface2" : "border-transparent opacity-40"
                   }`}
@@ -117,9 +147,7 @@ export default function Dashboard() {
                   <span className="text-sm font-medium">{w.name}</span>
                   <span className="text-xs text-muted">{w.currency}</span>
                 </div>
-                <div
-                  className={`mt-2 stat ${w.accent === "gold" ? "text-gold" : ""}`}
-                >
+                <div className={`mt-2 stat ${w.accent === "gold" ? "text-gold" : ""}`}>
                   {formatMoney(w.balanceMinor, w.currency)}
                 </div>
                 <p className="mt-1 text-xs text-muted">{w.purpose}</p>
