@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #08090d;
+  --surface: #111420;
+  --surface-2: #171b29;
+  --border: #232838;
+  --text: #e7eaf2;
+  --muted: #8a91a6;
+  --accent: #34d399;
+  --accent-soft: rgba(52, 211, 153, 0.12);
+  --gold: #f4c95d;
+  --danger: #f87171;
+  --warn: #fbbf24;
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(52, 211, 153, 0.06), transparent),
+    var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-border bg-surface p-5;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-border bg-surface2 px-2.5 py-1 text-xs text-muted;
+  }
+  .stat {
+    @apply text-2xl font-semibold tracking-tight text-ink;
+  }
+  .label {
+    @apply text-xs uppercase tracking-wide text-muted;
+  }
+}
