@@ -115,6 +115,25 @@ export async function runLiveConvert(amountUsd: number): Promise<LiveConvertResu
   return res.json();
 }
 
+export interface LiveSendResult {
+  configured: boolean;
+  amountUsd: number;
+  result: { ok: boolean; step: string; error?: string };
+  before: LiveWallet[];
+  after: LiveWallet[];
+}
+
+export async function runLiveSend(amountUsd: number): Promise<LiveSendResult> {
+  const res = await fetch(`${BASE}/live/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ amountUsd }),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`live send ${res.status}`);
+  return res.json();
+}
+
 export interface Rule {
   id: string;
   kind: "salary" | "goal" | "family" | "hedge";

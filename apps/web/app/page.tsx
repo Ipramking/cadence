@@ -10,6 +10,7 @@ import {
   getWallets,
   previewInflow,
   runLiveConvert,
+  runLiveSend,
   sendAgentCommand,
   type ApiTransaction,
   type InflowPreview,
@@ -109,6 +110,24 @@ export default function Dashboard() {
       setLiveBal({ configured: true, wallets: r.after });
     } catch {
       setLiveMsg("Live conversion failed — check the sandbox.");
+    }
+    setLiveBusy(false);
+  }
+
+  async function runSend() {
+    if (liveBusy) return;
+    setLiveBusy(true);
+    setLiveMsg(null);
+    try {
+      const r = await runLiveSend(1);
+      setLiveMsg(
+        r.result.ok
+          ? "Sent $1 on BMONI — proposal signed and submitted."
+          : `Send needs a funded wallet (${r.result.step}${r.result.error ? ": " + r.result.error : ""}).`,
+      );
+      setLiveBal({ configured: true, wallets: r.after });
+    } catch {
+      setLiveMsg("Live send failed — check the sandbox.");
     }
     setLiveBusy(false);
   }
@@ -308,13 +327,22 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
-              <button
-                onClick={runLive}
-                disabled={liveBusy}
-                className="rounded-full border border-accent px-4 py-2 text-sm font-medium text-accent transition disabled:opacity-50"
-              >
-                {liveBusy ? "Converting…" : "Convert $5 live"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={runLive}
+                  disabled={liveBusy}
+                  className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-black transition disabled:opacity-50"
+                >
+                  {liveBusy ? "…" : "Convert $5 live"}
+                </button>
+                <button
+                  onClick={runSend}
+                  disabled={liveBusy}
+                  className="rounded-full border border-accent px-4 py-2 text-sm font-medium text-accent transition disabled:opacity-50"
+                >
+                  Send $1 live
+                </button>
+              </div>
             </div>
             <p className="mt-3 text-xs text-muted">
               {liveMsg ??

@@ -1,6 +1,33 @@
+import fs from "node:fs";
+import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { SandboxBmoniClient } from "./sandbox.js";
 
 let client: SandboxBmoniClient | null = null;
+
+export interface OwnerContext {
+  userId: string;
+  account: PrivateKeyAccount;
+  wallets: { currency: string; id: string; address: string }[];
+}
+
+/**
+ * Loads the provisioned sandbox owner (key + wallets) from the gitignored
+ * .bmoni-user.json. Needed to sign real send/transfer proposals. Returns null
+ * if no user has been provisioned.
+ */
+export function ownerContext(): OwnerContext | null {
+  try {
+    const path = new URL("../../.bmoni-user.json", import.meta.url);
+    const data = JSON.parse(fs.readFileSync(path, "utf8"));
+    return {
+      userId: data.bmoniUserId,
+      account: privateKeyToAccount(data.ownerPrivateKey),
+      wallets: data.wallets,
+    };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * The real BMONI sandbox client, used for genuine FX rate + conversion calls

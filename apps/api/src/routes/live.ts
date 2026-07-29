@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { sandbox } from "../bmoni/real.js";
+import { liveSend } from "../bmoni/send.js";
 
 /**
  * Direct window onto the real BMONI sandbox account — used to demonstrate a
@@ -28,5 +29,20 @@ export async function liveRoutes(app: FastifyInstance): Promise<void> {
     const after = await real.listWallets();
 
     return { configured: true, amountUsd: usd, tx, before, after };
+  });
+
+  // Fallback proof: a real send that moves USDB out (delivered as CNGN),
+  // signed with the owner key. Use if exchange/convert turns out quote-only.
+  app.post("/live/send", async (req) => {
+    const real = sandbox();
+    if (!real) return { configured: false };
+    const body = (req.body ?? {}) as { amountUsd?: number };
+    const usd = Math.min(10, Math.max(1, Math.round(body.amountUsd ?? 1)));
+
+    const before = await real.listWallets();
+    const result = await liveSend(usd);
+    const after = await real.listWallets();
+
+    return { configured: true, amountUsd: usd, result, before, after };
   });
 }
