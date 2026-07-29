@@ -6,8 +6,8 @@ services:
     buildCommand: >-
       npm install &&
       npm run build --workspace @cadence/shared &&
-      npm run build --workspace @cadence/api &&
-      cd apps/api && npx prisma generate
+      npx prisma generate --schema apps/api/prisma/schema.prisma &&
+      npm run build --workspace @cadence/api
     startCommand: >-
       cd apps/api &&
       npx prisma migrate deploy &&
