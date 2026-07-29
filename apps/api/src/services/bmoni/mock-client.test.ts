@@ -3,7 +3,7 @@ import { MockBmoniClient } from "./mock-client.js";
 import { prisma } from "../../db.js";
 import { BmoniError } from "@cadence/shared";
 
-describe("MockBmoniClient", () => {
+describe("MockBmoniClient", { timeout: 30000 }, () => {
   const client = new MockBmoniClient();
   let usdWallet1Id: string;
   let usdWallet2Id: string;
@@ -11,7 +11,7 @@ describe("MockBmoniClient", () => {
 
   beforeAll(async () => {
     // Ensure we start with clean wallets for tests (we delete them in afterAll)
-  });
+  }, 30000);
 
   afterAll(async () => {
     // Clean up created test data

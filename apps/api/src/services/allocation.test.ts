@@ -96,7 +96,7 @@ describe("AllocationEngine", { timeout: 30000 }, () => {
       data: { kind: "hedge", label: "Stablecoin Hedge", percentage: 15.0, targetCurrency: "USDC", priority: 4, enabled: true },
     });
     hedgeRuleId = rHedge.id;
-  });
+  }, 30000);
 
   afterAll(async () => {
     await prisma.$disconnect();

@@ -6,6 +6,12 @@ import { overviewRoutes } from "./routes/overview.js";
 import { pipelineRoutes } from "./routes/pipeline.js";
 import { agentRoutes } from "./routes/agent.js";
 
+import { walletRoutes } from "./routes/wallets.js";
+import { transactionRoutes } from "./routes/transactions.js";
+import { ruleRoutes } from "./routes/rules.js";
+import { goalRoutes } from "./routes/goals.js";
+import { inflowRoutes } from "./routes/inflows.js";
+
 initBmoniClient();
 
 const app = Fastify({ logger: true });
@@ -17,10 +23,12 @@ await app.register(overviewRoutes);
 await app.register(pipelineRoutes);
 await app.register(agentRoutes);
 
-// Feature routes are registered here as they land:
-//   app.register(walletRoutes, { prefix: "/wallets" });
-//   app.register(inflowRoutes, { prefix: "/inflows" });
-//   app.register(ruleRoutes,   { prefix: "/rules" });
+// Register feature routes
+await app.register(walletRoutes, { prefix: "/wallets" });
+await app.register(transactionRoutes, { prefix: "/transactions" });
+await app.register(ruleRoutes, { prefix: "/rules" });
+await app.register(goalRoutes, { prefix: "/goals" });
+await app.register(inflowRoutes, { prefix: "/inflows" });
 
 const port = Number(process.env.PORT ?? 4000);
 
