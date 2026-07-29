@@ -12,8 +12,8 @@ services:
     startCommand: >-
       cd apps/api &&
       npx prisma migrate deploy &&
-      npx tsx prisma/seed.ts &&
-      npx tsx src/scripts/assess.ts &&
+      (npx tsx prisma/seed.ts || echo "seed skipped") &&
+      (npx tsx src/scripts/assess.ts || echo "assess skipped") &&
       node dist/server.js
     healthCheckPath: /health
     envVars:
