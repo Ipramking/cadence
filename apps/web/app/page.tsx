@@ -4,16 +4,64 @@ import { useEffect, useState } from "react";
 import { formatMoney } from "@/lib/format";
 import {
   getOverview,
+  getTransactions,
+  getWallets,
   previewInflow,
   sendAgentCommand,
+  type ApiTransaction,
   type InflowPreview,
+  type OverviewWallet,
 } from "@/lib/api";
 import {
-  activity,
+  activity as mockActivity,
   savedVsBankMinor,
-  wallets,
+  wallets as mockWallets,
+  type ActivityView,
   type Risk,
+  type WalletView,
 } from "@/lib/mock";
+
+const PURPOSE_LABEL: Record<string, string> = {
+  main: "Main balance",
+  salary: "Monthly salary",
+  goal: "Savings goal",
+  family: "Family support",
+  hedge: "USD hedge",
+  reserve: "Reserve",
+};
+
+function mapWallet(w: OverviewWallet): WalletView {
+  return {
+    name: w.name,
+    purpose: PURPOSE_LABEL[w.purpose] ?? w.purpose,
+    currency: w.balance.currency as WalletView["currency"],
+    balanceMinor: w.balance.minor,
+    accent: w.purpose === "goal" || w.purpose === "hedge" ? "gold" : undefined,
+  };
+}
+
+function relTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const h = Math.floor(diff / 3_600_000);
+  if (h < 1) return "just now";
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return d === 1 ? "yesterday" : `${d}d ago`;
+}
+
+function mapTx(t: ApiTransaction): ActivityView {
+  const sym = t.amount.currency === "USD" ? "$" : t.amount.currency === "NGN" ? "₦" : "";
+  const risk: Risk =
+    t.status === "flagged" ? "high" : t.status === "pending" ? "watch" : "clear";
+  return {
+    id: t.id,
+    title: t.counterparty ? `Payment from ${t.counterparty}` : `${t.type} transaction`,
+    detail: `${t.type} · ${t.status}`,
+    amount: `${t.type === "inflow" ? "+" : ""}${sym}${(t.amount.minor / 100).toLocaleString()}`,
+    risk,
+    time: relTime(t.occurredAt),
+  };
+}
 
 const riskStyles: Record<Risk, string> = {
   clear: "text-accent bg-accent-soft",
@@ -31,6 +79,8 @@ export default function Dashboard() {
   const [agentText, setAgentText] = useState("");
   const [agentReply, setAgentReply] = useState<string | null>(null);
   const [agentBusy, setAgentBusy] = useState(false);
+  const [liveWallets, setLiveWallets] = useState<WalletView[] | null>(null);
+  const [liveActivity, setLiveActivity] = useState<ActivityView[] | null>(null);
 
   async function sendAgent() {
     const text = agentText.trim();
@@ -47,12 +97,21 @@ export default function Dashboard() {
     setAgentBusy(false);
   }
 
-  // Pull the live USD/NGN rate on load.
+  // Pull live rate, wallets and activity on load (fall back to mock on failure).
   useEffect(() => {
     getOverview()
       .then((o) => setRate(o.rate.rate))
       .catch(() => setRate(null));
+    getWallets()
+      .then((ws) => setLiveWallets(ws.map(mapWallet)))
+      .catch(() => setLiveWallets(null));
+    getTransactions(6)
+      .then((ts) => setLiveActivity(ts.map(mapTx)))
+      .catch(() => setLiveActivity(null));
   }, []);
+
+  const walletList = liveWallets ?? mockWallets;
+  const activityList = liveActivity ?? mockActivity;
 
   const stages = [
     { label: "Guarded", note: "Verified — not the overpayment pattern" },
@@ -160,7 +219,7 @@ export default function Dashboard() {
       <section className="mb-6">
         <h2 className="label mb-3">Wallets</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {wallets.map((w) => {
+          {walletList.map((w) => {
             const pct = w.goal
               ? Math.min(100, Math.round((w.balanceMinor / w.goal.targetMinor) * 100))
               : null;
@@ -189,7 +248,7 @@ export default function Dashboard() {
       <section className="mb-24">
         <h2 className="label mb-3">Recent activity</h2>
         <div className="card divide-y divide-border p-0">
-          {activity.map((a) => (
+          {activityList.map((a) => (
             <div key={a.id} className="flex items-center gap-4 p-4">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{a.title}</p>

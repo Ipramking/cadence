@@ -19,6 +19,27 @@ export async function getOverview(): Promise<Overview> {
   return res.json();
 }
 
+export async function getWallets(): Promise<OverviewWallet[]> {
+  const res = await fetch(`${BASE}/wallets`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`wallets ${res.status}`);
+  return res.json();
+}
+
+export interface ApiTransaction {
+  id: string;
+  type: string;
+  amount: { minor: number; currency: string };
+  status: string;
+  counterparty?: string;
+  occurredAt: string;
+}
+
+export async function getTransactions(limit = 8): Promise<ApiTransaction[]> {
+  const res = await fetch(`${BASE}/transactions?limit=${limit}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`transactions ${res.status}`);
+  return res.json();
+}
+
 export interface InflowPreview {
   amountUsd: number;
   rate: number;
