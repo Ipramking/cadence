@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: cadence-api
+    runtime: node
+    plan: free
+    buildCommand: >-
+      npm install &&
+      npm run build --workspace @cadence/shared &&
+      npm run build --workspace @cadence/api &&
+      cd apps/api && npx prisma generate
+    startCommand: >-
+      cd apps/api &&
+      npx prisma migrate deploy &&
+      npx tsx prisma/seed.ts &&
+      npx tsx src/scripts/assess.ts &&
+      node dist/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: BMONI_PROVIDER
+        value: mock
+      - key: BMONI_BASE_URL
+        value: https://embedded-dev.bmoni.com
+      - key: DATABASE_URL
+        value: file:./prod.db
+      - key: GEMINI_MODEL
+        value: gemini-flash-latest
+      # Secrets — set these in the Render dashboard (never committed):
+      - key: BMONI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: BMONI_USER_ID
+        sync: false
+      - key: BMONI_OWNER_KEY
+        sync: false

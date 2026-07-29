@@ -153,10 +153,11 @@ export default function Dashboard() {
       .then((o) => setRate(o.rate.rate))
       .catch(() => setRate(null));
     getWallets()
-      .then((ws) => setLiveWallets(ws.map(mapWallet)))
+      .then((ws) => setLiveWallets(ws.length ? ws.map(mapWallet) : null))
       .catch(() => setLiveWallets(null));
     getTransactions(25)
       .then((ts) => {
+        if (!ts.length) return setLiveActivity(null);
         const rank: Record<Risk, number> = { high: 2, watch: 1, clear: 0 };
         const mapped = ts.map(mapTx).sort((a, b) => rank[b.risk] - rank[a.risk]);
         setLiveActivity(mapped.slice(0, 7));

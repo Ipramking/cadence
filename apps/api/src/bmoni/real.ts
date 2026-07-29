@@ -16,6 +16,17 @@ export interface OwnerContext {
  * if no user has been provisioned.
  */
 export function ownerContext(): OwnerContext | null {
+  // Env-first (hosting): owner key + user id come from environment.
+  const envKey = process.env.BMONI_OWNER_KEY;
+  const envUser = process.env.BMONI_USER_ID;
+  if (envKey && envUser) {
+    return {
+      userId: envUser,
+      account: privateKeyToAccount(envKey as `0x${string}`),
+      wallets: [],
+    };
+  }
+  // File fallback (local dev): read the provisioned user.
   try {
     const path = new URL("../../.bmoni-user.json", import.meta.url);
     const data = JSON.parse(fs.readFileSync(path, "utf8"));

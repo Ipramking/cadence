@@ -34,8 +34,16 @@ export async function liveSend(amountUsd: number): Promise<{
 }> {
   const owner = ownerContext();
   if (!owner) return { ok: false, step: "owner", error: "no provisioned owner" };
-  const usdb = owner.wallets.find((w) => w.currency === "USDB");
-  if (!usdb) return { ok: false, step: "wallet", error: "no USDB wallet" };
+
+  // Wallet id from the file when present, otherwise fetched from BMONI (hosting).
+  let usdbId = owner.wallets.find((w) => w.currency === "USDB")?.id;
+  if (!usdbId) {
+    const wallets = await bmoniFetch<{ id: string; currency: string }[]>(
+      `/v1/users/${owner.userId}/smart-wallets/account/wallets`,
+    );
+    usdbId = wallets.find((w) => w.currency === "USD" || w.currency === "USDB")?.id;
+  }
+  if (!usdbId) return { ok: false, step: "wallet", error: "no USDB wallet" };
 
   // 1. Request the send (creates a proposal + returns a hash to sign).
   let send: SendResponse;
@@ -45,7 +53,7 @@ export async function liveSend(amountUsd: number): Promise<{
       {
         method: "POST",
         body: {
-          fromWalletId: usdb.id,
+          fromWalletId: usdbId,
           amount: String(amountUsd),
           note: "Cadence live send",
           expectedTargetCurrency: "CNGN",
