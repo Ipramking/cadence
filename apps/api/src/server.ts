@@ -5,6 +5,7 @@ import { initBmoniClient } from "./services/bmoni/provider.js";
 import { overviewRoutes } from "./routes/overview.js";
 import { pipelineRoutes } from "./routes/pipeline.js";
 import { agentRoutes } from "./routes/agent.js";
+import { liveRoutes } from "./routes/live.js";
 
 import { walletRoutes } from "./routes/wallets.js";
 import { transactionRoutes } from "./routes/transactions.js";
@@ -22,6 +23,7 @@ app.get("/health", async () => ({ status: "ok" }));
 await app.register(overviewRoutes);
 await app.register(pipelineRoutes);
 await app.register(agentRoutes);
+await app.register(liveRoutes);
 
 // Register feature routes
 await app.register(walletRoutes, { prefix: "/wallets" });

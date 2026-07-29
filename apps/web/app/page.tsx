@@ -4,13 +4,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatMoney } from "@/lib/format";
 import {
+  getLiveBalances,
   getOverview,
   getTransactions,
   getWallets,
   previewInflow,
+  runLiveConvert,
   sendAgentCommand,
   type ApiTransaction,
   type InflowPreview,
+  type LiveBalances,
   type OverviewWallet,
 } from "@/lib/api";
 import {
@@ -84,6 +87,31 @@ export default function Dashboard() {
   const [agentBusy, setAgentBusy] = useState(false);
   const [liveWallets, setLiveWallets] = useState<WalletView[] | null>(null);
   const [liveActivity, setLiveActivity] = useState<ActivityView[] | null>(null);
+  const [liveBal, setLiveBal] = useState<LiveBalances | null>(null);
+  const [liveBusy, setLiveBusy] = useState(false);
+  const [liveMsg, setLiveMsg] = useState<string | null>(null);
+
+  function refreshLive() {
+    getLiveBalances()
+      .then(setLiveBal)
+      .catch(() => setLiveBal(null));
+  }
+
+  async function runLive() {
+    if (liveBusy) return;
+    setLiveBusy(true);
+    setLiveMsg(null);
+    try {
+      const r = await runLiveConvert(5);
+      setLiveMsg(
+        `Converted $${r.amountUsd} → ₦${(r.tx.amount.minor / 100).toLocaleString()} at ₦${r.tx.metadata.rate} on BMONI.`,
+      );
+      setLiveBal({ configured: true, wallets: r.after });
+    } catch {
+      setLiveMsg("Live conversion failed — check the sandbox.");
+    }
+    setLiveBusy(false);
+  }
 
   async function sendAgent() {
     const text = agentText.trim();
@@ -115,7 +143,11 @@ export default function Dashboard() {
         setLiveActivity(mapped.slice(0, 7));
       })
       .catch(() => setLiveActivity(null));
+    refreshLive();
   }, []);
+
+  const usdLive = liveBal?.wallets.find((w) => w.currency === "USD");
+  const ngnLive = liveBal?.wallets.find((w) => w.currency === "NGN");
 
   const walletList = liveWallets ?? mockWallets;
   const activityList = liveActivity ?? mockActivity;
@@ -255,6 +287,42 @@ export default function Dashboard() {
           })}
         </div>
       </section>
+
+      {/* Live BMONI account */}
+      {liveBal?.configured && (
+        <section className="mb-6">
+          <h2 className="label mb-3">Live BMONI account · real sandbox</h2>
+          <div className="card">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex gap-8">
+                <div>
+                  <span className="label">USDB</span>
+                  <div className="stat">
+                    ${((usdLive?.balance.minor ?? 0) / 100).toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <span className="label">CNGN</span>
+                  <div className="stat">
+                    ₦{((ngnLive?.balance.minor ?? 0) / 100).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={runLive}
+                disabled={liveBusy}
+                className="rounded-full border border-accent px-4 py-2 text-sm font-medium text-accent transition disabled:opacity-50"
+              >
+                {liveBusy ? "Converting…" : "Convert $5 live"}
+              </button>
+            </div>
+            <p className="mt-3 text-xs text-muted">
+              {liveMsg ??
+                "Balances read live from BMONI. Fund the sandbox wallets to move real value."}
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Activity */}
       <section className="mb-24">

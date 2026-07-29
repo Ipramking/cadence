@@ -79,6 +79,42 @@ export async function sendAgentCommand(text: string): Promise<AgentResult> {
   return res.json();
 }
 
+export interface LiveWallet {
+  id: string;
+  currency: string;
+  balance: { minor: number; currency: string };
+}
+
+export interface LiveBalances {
+  configured: boolean;
+  wallets: LiveWallet[];
+}
+
+export async function getLiveBalances(): Promise<LiveBalances> {
+  const res = await fetch(`${BASE}/live/balances`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`live balances ${res.status}`);
+  return res.json();
+}
+
+export interface LiveConvertResult {
+  configured: boolean;
+  amountUsd: number;
+  tx: { amount: { minor: number; currency: string }; metadata: { rate: number } };
+  before: LiveWallet[];
+  after: LiveWallet[];
+}
+
+export async function runLiveConvert(amountUsd: number): Promise<LiveConvertResult> {
+  const res = await fetch(`${BASE}/live/convert`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ amountUsd }),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`live convert ${res.status}`);
+  return res.json();
+}
+
 export interface Rule {
   id: string;
   kind: "salary" | "goal" | "family" | "hedge";
