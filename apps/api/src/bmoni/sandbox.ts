@@ -112,16 +112,19 @@ export class SandboxBmoniClient implements BmoniClient {
         body: { amount: toMajor(input.amount), from: input.amount.currency, to: input.to },
       },
     );
+    const receivesMinor = toMinor(r.convertedAmount, input.to);
     return {
       id: `cvt_${Date.now()}`,
       type: "conversion",
-      amount: { minor: toMinor(r.convertedAmount, input.to), currency: input.to },
+      amount: { minor: receivesMinor, currency: input.to },
       status: "settled",
       occurredAt: new Date().toISOString(),
       metadata: {
         rate: Number(r.exchangeRate),
         fromMinor: input.amount.minor,
         fromCurrency: input.amount.currency,
+        receivesMinor,
+        receivesCurrency: input.to,
       },
     };
   }
