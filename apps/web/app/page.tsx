@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { formatMoney } from "@/lib/format";
 import {
   getOverview,
@@ -162,10 +163,15 @@ export default function Dashboard() {
           <h1 className="text-xl font-semibold tracking-tight">Cadence</h1>
           <p className="text-sm text-muted">Your cross-border money, on autopilot.</p>
         </div>
-        <span className="chip">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-          {rate ? `Live ₦${rate.toFixed(2)}/$` : "Sandbox · test data"}
-        </span>
+        <div className="flex items-center gap-3">
+          <Link href="/setup" className="text-sm text-muted hover:text-ink">
+            Plan
+          </Link>
+          <span className="chip">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+            {rate ? `Live ₦${rate.toFixed(2)}/$` : "Sandbox · test data"}
+          </span>
+        </div>
       </header>
 
       {/* Hero + pipeline */}

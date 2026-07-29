@@ -78,3 +78,31 @@ export async function sendAgentCommand(text: string): Promise<AgentResult> {
   if (!res.ok) throw new Error(`agent ${res.status}`);
   return res.json();
 }
+
+export interface Rule {
+  id: string;
+  kind: "salary" | "goal" | "family" | "hedge";
+  label: string;
+  percentage: number;
+  targetCurrency?: string | null;
+  goalId?: string | null;
+  priority: number;
+  enabled: boolean;
+}
+
+export async function getRules(): Promise<Rule[]> {
+  const res = await fetch(`${BASE}/rules`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`rules ${res.status}`);
+  return res.json();
+}
+
+export async function updateRule(id: string, patch: Partial<Rule>): Promise<Rule> {
+  const res = await fetch(`${BASE}/rules/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`updateRule ${res.status}`);
+  return res.json();
+}
