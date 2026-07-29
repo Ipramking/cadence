@@ -11,4 +11,11 @@ coverage/
 .DS_Store
 *.sqlite
 *.sqlite-journal
-prisma/dev.db*
+*.db
+*.db-journal
+**/dev.db*
+**/test.db*
+
+# local exploration, never committed
+scratch/
+**/scratch/
