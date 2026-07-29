@@ -1,0 +1,59 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Wallet {
+  id               String        @id @default(uuid())
+  name             String
+  purpose          String
+  currency         String
+  balanceMinor     Int
+  createdAt        DateTime      @default(now())
+  fromTransactions Transaction[] @relation("FromWallet")
+  toTransactions   Transaction[] @relation("ToWallet")
+}
+
+model Transaction {
+  id           String   @id @default(uuid())
+  type         String
+  amountMinor  Int
+  currency     String
+  status       String
+  counterparty String?
+  occurredAt   DateTime @default(now())
+  fromWalletId String?
+  toWalletId   String?
+  metadata     String?
+
+  fromWallet Wallet? @relation("FromWallet", fields: [fromWalletId], references: [id], onDelete: SetNull)
+  toWallet   Wallet? @relation("ToWallet", fields: [toWalletId], references: [id], onDelete: SetNull)
+}
+
+model AllocationRule {
+  id             String  @id @default(uuid())
+  kind           String
+  label          String
+  percentage     Float
+  targetCurrency String?
+  goalId         String?
+  priority       Int
+  enabled        Boolean @default(true)
+
+  goal Goal? @relation(fields: [goalId], references: [id], onDelete: SetNull)
+}
+
+model Goal {
+  id             String           @id @default(uuid())
+  name           String
+  targetMinor    Int
+  targetCurrency String
+  savedMinor     Int
+  savedCurrency  String
+  deadline       DateTime?
+  rules          AllocationRule[]
+}
