@@ -37,3 +37,22 @@ export async function previewInflow(amountUsd: number): Promise<InflowPreview> {
   if (!res.ok) throw new Error(`preview ${res.status}`);
   return res.json();
 }
+
+export interface AgentResult {
+  action: string;
+  amountMinor?: number;
+  currency?: string;
+  target?: string;
+  reply: string;
+}
+
+export async function sendAgentCommand(text: string): Promise<AgentResult> {
+  const res = await fetch(`${BASE}/agent/command`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`agent ${res.status}`);
+  return res.json();
+}

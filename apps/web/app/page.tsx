@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { formatMoney } from "@/lib/format";
-import { getOverview, previewInflow, type InflowPreview } from "@/lib/api";
+import {
+  getOverview,
+  previewInflow,
+  sendAgentCommand,
+  type InflowPreview,
+} from "@/lib/api";
 import {
   activity,
   savedVsBankMinor,
@@ -23,6 +28,24 @@ export default function Dashboard() {
   const [running, setRunning] = useState(false);
   const [rate, setRate] = useState<number | null>(null);
   const [preview, setPreview] = useState<InflowPreview | null>(null);
+  const [agentText, setAgentText] = useState("");
+  const [agentReply, setAgentReply] = useState<string | null>(null);
+  const [agentBusy, setAgentBusy] = useState(false);
+
+  async function sendAgent() {
+    const text = agentText.trim();
+    if (!text || agentBusy) return;
+    setAgentBusy(true);
+    setAgentReply(null);
+    try {
+      const res = await sendAgentCommand(text);
+      setAgentReply(res.reply);
+      setAgentText("");
+    } catch {
+      setAgentReply("I couldn't reach the agent just now — try again.");
+    }
+    setAgentBusy(false);
+  }
 
   // Pull the live USD/NGN rate on load.
   useEffect(() => {
@@ -186,14 +209,30 @@ export default function Dashboard() {
 
       {/* Agent bar */}
       <div className="fixed inset-x-0 bottom-0 border-t border-border bg-bg/80 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-5 py-3">
-          <input
-            placeholder="Tell Cadence what to do — “send home ₦60k this month”"
-            className="flex-1 rounded-full border border-border bg-surface px-4 py-2.5 text-sm outline-none placeholder:text-muted focus:border-accent"
-          />
-          <button className="rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-black">
-            Send
-          </button>
+        <div className="mx-auto max-w-5xl px-5 py-3">
+          {agentReply && (
+            <div className="mb-2 flex items-start gap-2 rounded-xl border border-border bg-surface2 px-3 py-2 text-sm">
+              <span className="mt-0.5 text-accent">✦</span>
+              <p className="text-ink">{agentReply}</p>
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <input
+              value={agentText}
+              onChange={(e) => setAgentText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && sendAgent()}
+              disabled={agentBusy}
+              placeholder="Tell Cadence what to do — “send home ₦60k this month”"
+              className="flex-1 rounded-full border border-border bg-surface px-4 py-2.5 text-sm outline-none placeholder:text-muted focus:border-accent disabled:opacity-60"
+            />
+            <button
+              onClick={sendAgent}
+              disabled={agentBusy || !agentText.trim()}
+              className="rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-black transition disabled:opacity-50"
+            >
+              {agentBusy ? "…" : "Send"}
+            </button>
+          </div>
         </div>
       </div>
     </main>

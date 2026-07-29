@@ -4,6 +4,7 @@ import cors from "@fastify/cors";
 import { initBmoniClient } from "./services/bmoni/provider.js";
 import { overviewRoutes } from "./routes/overview.js";
 import { pipelineRoutes } from "./routes/pipeline.js";
+import { agentRoutes } from "./routes/agent.js";
 
 initBmoniClient();
 
@@ -14,6 +15,7 @@ await app.register(cors, { origin: true });
 app.get("/health", async () => ({ status: "ok" }));
 await app.register(overviewRoutes);
 await app.register(pipelineRoutes);
+await app.register(agentRoutes);
 
 // Feature routes are registered here as they land:
 //   app.register(walletRoutes, { prefix: "/wallets" });
