@@ -51,14 +51,16 @@ function relTime(iso: string): string {
 
 function mapTx(t: ApiTransaction): ActivityView {
   const sym = t.amount.currency === "USD" ? "$" : t.amount.currency === "NGN" ? "₦" : "";
-  const risk: Risk =
-    t.status === "flagged" ? "high" : t.status === "pending" ? "watch" : "clear";
+  const flagged = (t.metadata?.risk as Risk) ?? (t.status === "flagged" ? "high" : "clear");
+  const reason = t.metadata?.riskReasons?.[0];
+  const detail =
+    flagged !== "clear" && reason ? reason : `${t.type} · ${t.status}`;
   return {
     id: t.id,
     title: t.counterparty ? `Payment from ${t.counterparty}` : `${t.type} transaction`,
-    detail: `${t.type} · ${t.status}`,
+    detail,
     amount: `${t.type === "inflow" ? "+" : ""}${sym}${(t.amount.minor / 100).toLocaleString()}`,
-    risk,
+    risk: flagged,
     time: relTime(t.occurredAt),
   };
 }
@@ -105,8 +107,12 @@ export default function Dashboard() {
     getWallets()
       .then((ws) => setLiveWallets(ws.map(mapWallet)))
       .catch(() => setLiveWallets(null));
-    getTransactions(6)
-      .then((ts) => setLiveActivity(ts.map(mapTx)))
+    getTransactions(25)
+      .then((ts) => {
+        const rank: Record<Risk, number> = { high: 2, watch: 1, clear: 0 };
+        const mapped = ts.map(mapTx).sort((a, b) => rank[b.risk] - rank[a.risk]);
+        setLiveActivity(mapped.slice(0, 7));
+      })
       .catch(() => setLiveActivity(null));
   }, []);
 

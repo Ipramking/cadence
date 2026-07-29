@@ -32,6 +32,7 @@ export interface ApiTransaction {
   status: string;
   counterparty?: string;
   occurredAt: string;
+  metadata?: { risk?: string; riskReasons?: string[] } & Record<string, unknown>;
 }
 
 export async function getTransactions(limit = 8): Promise<ApiTransaction[]> {
