@@ -2,6 +2,8 @@ import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { initBmoniClient } from "./services/bmoni/provider.js";
+import { overviewRoutes } from "./routes/overview.js";
+import { pipelineRoutes } from "./routes/pipeline.js";
 
 initBmoniClient();
 
@@ -10,6 +12,8 @@ const app = Fastify({ logger: true });
 await app.register(cors, { origin: true });
 
 app.get("/health", async () => ({ status: "ok" }));
+await app.register(overviewRoutes);
+await app.register(pipelineRoutes);
 
 // Feature routes are registered here as they land:
 //   app.register(walletRoutes, { prefix: "/wallets" });
