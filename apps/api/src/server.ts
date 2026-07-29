@@ -1,5 +1,9 @@
+import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import { initBmoniClient } from "./services/bmoni/provider.js";
+
+initBmoniClient();
 
 const app = Fastify({ logger: true });
 
