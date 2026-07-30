@@ -134,6 +134,95 @@ export async function runLiveSend(amountUsd: number): Promise<LiveSendResult> {
   return res.json();
 }
 
+// ── Agentic engine ──
+export interface AgentRoute {
+  fromCurrency: string;
+  toCurrency: string;
+  rate: number;
+  sourceMinor: number;
+  targetMinor: number;
+}
+
+export interface AgentActResult {
+  intent: string;
+  amountMinor?: number;
+  currency?: "USD" | "NGN";
+  targetCurrency?: "USD" | "NGN";
+  recipient?: string;
+  reply: string;
+  serious: boolean;
+  route?: AgentRoute | null;
+  needsConfirm: boolean;
+}
+
+export async function agentAct(
+  text: string,
+  sourceCurrency: "USD" | "NGN" = "USD",
+): Promise<AgentActResult> {
+  const res = await fetch(`${BASE}/agent/act`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, sourceCurrency }),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`agent act ${res.status}`);
+  return res.json();
+}
+
+export interface ParsedPayment {
+  recipient?: string;
+  amountMinor?: number;
+  currency?: "USD" | "NGN";
+  bank?: string;
+  account?: string;
+  note?: string;
+}
+
+export async function parsePaymentImage(
+  image: string,
+  mimeType: string,
+): Promise<ParsedPayment> {
+  const res = await fetch(`${BASE}/agent/parse-image`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image, mimeType }),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`parse image ${res.status}`);
+  return res.json();
+}
+
+export interface PayResult {
+  ok: boolean;
+  error?: string;
+  receipt?: {
+    id: string;
+    recipient: string;
+    amountMinor: number;
+    currency: string;
+    route?: AgentRoute | null;
+    note?: string | null;
+    at: string;
+  };
+}
+
+export async function payAgent(input: {
+  recipient: string;
+  amountMinor: number;
+  currency: "USD" | "NGN";
+  sourceCurrency?: "USD" | "NGN";
+  note?: string;
+}): Promise<PayResult> {
+  const res = await fetch(`${BASE}/agent/pay`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`pay ${res.status}`);
+  return res.json();
+}
+
 export interface Rule {
   id: string;
   kind: "salary" | "goal" | "family" | "hedge";
