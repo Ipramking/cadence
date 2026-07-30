@@ -42,6 +42,8 @@ const signupSchema = z.object({
 });
 const loginSchema = z.object({ email: z.string().email(), password: z.string() });
 const onboardSchema = z.object({
+  name: z.string().optional(),
+  phone: z.string().optional(),
   autonomy: z.enum(["manual", "hybrid", "automatic"]).optional(),
   planEnabled: z.boolean().optional(),
   pin: z.string().optional(),
@@ -109,14 +111,15 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const parsed = onboardSchema.safeParse(req.body ?? {});
     const prefs = parsed.success ? parsed.data : {};
 
+    // Prefer the name/phone entered during onboarding — BMONI matches test
+    // tokens on the phone the account is provisioned with.
+    const name = prefs.name?.trim() || user.name || undefined;
+    const phone = prefs.phone?.trim() || user.phone || undefined;
+
     let bmoniFields: Record<string, unknown> = {};
     if (!user.bmoniUserId) {
       try {
-        const prov = await provisionSandboxUser({
-          name: user.name ?? undefined,
-          email: user.email,
-          phone: user.phone ?? undefined,
-        });
+        const prov = await provisionSandboxUser({ name, email: user.email, phone });
         const cngn = prov.wallets.find((w) => w.currency === "CNGN");
         const usdb = prov.wallets.find((w) => w.currency === "USDB");
         bmoniFields = {
@@ -136,6 +139,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       where: { id: uid! },
       data: {
         ...bmoniFields,
+        name,
+        phone,
         autonomy: prefs.autonomy ?? user.autonomy,
         planEnabled: prefs.planEnabled ?? user.planEnabled,
         pinHash: prefs.pin ? hashSecret(prefs.pin) : user.pinHash,

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkle } from "@/components/Sparkle";
-import { getRules, updateRule, type Rule } from "@/lib/api";
+import { getRules, onboardUser, updateRule, type Rule } from "@/lib/api";
 import {
+  cacheUser,
   completeOnboarding,
   getSession,
   isSignedIn,
@@ -62,24 +63,54 @@ export default function Onboarding() {
   const [pct, setPct] = useState<Record<string, number>>({});
   const [pin, setPin] = useState("");
   const [safeWord, setSafeWord] = useState("");
+  const [provErr, setProvErr] = useState<string | null>(null);
+  const provRef = useRef<Promise<unknown> | null>(null);
 
   useEffect(() => {
     if (!isSignedIn()) {
       router.replace("/auth");
       return;
     }
-    setName(getSession()?.name ?? "");
+    const s = getSession();
+    setName(s?.name && s.name !== "there" ? s.name : "");
+    setPhone(s?.phone ?? "");
   }, [router]);
 
-  // wallet-creation animation
+  // Kick off the real BMONI provisioning, then play the wallet-creation animation.
+  function startCreate() {
+    setProvErr(null);
+    provRef.current = onboardUser({
+      name: name.trim() || undefined,
+      phone: phone.trim() || undefined,
+    })
+      .then((r) => cacheUser(r.user));
+    setCreating(0);
+  }
+
+  // wallet-creation animation — advances on its own, but waits for the real
+  // provisioning to finish before moving on.
   useEffect(() => {
     if (creating < 0) return;
     if (creating >= WALLET_STEPS.length) {
-      const t = setTimeout(() => {
-        setCreating(-1);
-        setStep(1);
-      }, 600);
-      return () => clearTimeout(t);
+      let cancelled = false;
+      (async () => {
+        try {
+          await provRef.current;
+          if (cancelled) return;
+          setTimeout(() => {
+            setCreating(-1);
+            setStep(1);
+          }, 400);
+        } catch {
+          if (!cancelled) {
+            setProvErr("Couldn't create your wallets just now — check your connection and try again.");
+            setCreating(-1);
+          }
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
     const t = setTimeout(() => setCreating((c) => c + 1), 700);
     return () => clearTimeout(t);
@@ -99,14 +130,25 @@ export default function Onboarding() {
   const total = useMemo(() => Object.values(pct).reduce((a, b) => a + b, 0), [pct]);
 
   async function finish() {
+    // Keep PIN / safe-word on-device for local confirm checks.
     updateSession({
-      name: name.trim() || "there",
-      phone: phone.trim(),
-      autonomy,
-      planEnabled: planChoice === "self" || planChoice === "ai",
       pin: pin.trim() || undefined,
       safeWord: safeWord.trim() || undefined,
     });
+    // Persist prefs server-side (won't re-provision — wallets already exist).
+    try {
+      const r = await onboardUser({
+        name: name.trim() || undefined,
+        phone: phone.trim() || undefined,
+        autonomy,
+        planEnabled: planChoice === "self" || planChoice === "ai",
+        pin: pin.trim() || undefined,
+        safeWord: safeWord.trim() || undefined,
+      });
+      cacheUser(r.user);
+    } catch {
+      /* prefs are best-effort — wallets already exist, so still proceed */
+    }
     if (planChoice === "self" && rules) {
       try {
         await Promise.all(
@@ -144,7 +186,8 @@ export default function Onboarding() {
               <Field label="Phone" value={phone} onChange={setPhone} placeholder="+234…" />
               <Field label="BVN (test)" value={bvn} onChange={setBvn} placeholder="22222222222" />
             </div>
-            <button onClick={() => setCreating(0)} className="btn-primary mt-6 w-full">
+            {provErr && <p className="mt-4 text-sm text-danger">{provErr}</p>}
+            <button onClick={startCreate} className="btn-primary mt-6 w-full">
               Create my account
             </button>
           </div>

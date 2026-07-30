@@ -1,10 +1,17 @@
 "use client";
 
+import { clearToken, getToken, type AuthUser } from "./api";
+
 const KEY = "cadence_session";
 const RECEIPTS = "cadence_receipts";
 
 export type Autonomy = "manual" | "hybrid" | "automatic";
 
+/**
+ * Local mirror of the signed-in user. The server (BMONI + Prisma) is the source
+ * of truth; this cache lets the UI read profile/prefs synchronously and keeps
+ * the PIN / safe-word on-device (they're verified locally before a payment).
+ */
 export interface Session {
   name: string;
   email: string;
@@ -28,17 +35,27 @@ const DEFAULTS: Session = {
 
 export function getSession(): Session | null {
   if (typeof window === "undefined") return null;
+  if (!getToken()) return null;
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? { ...DEFAULTS, ...JSON.parse(raw) } : null;
+    return raw ? { ...DEFAULTS, ...JSON.parse(raw) } : { ...DEFAULTS };
   } catch {
-    return null;
+    return { ...DEFAULTS };
   }
 }
 
-export function signIn(name: string, email: string): Session {
-  // Every sign-in starts a fresh account so onboarding always runs.
-  const s: Session = { ...DEFAULTS, name, email };
+/** Merge a fresh server user into the local mirror (keeps on-device secrets). */
+export function cacheUser(u: AuthUser): Session {
+  const prev = getSession() ?? { ...DEFAULTS };
+  const s: Session = {
+    ...prev,
+    name: u.name?.trim() || "there",
+    email: u.email,
+    phone: u.phone ?? prev.phone,
+    autonomy: u.autonomy,
+    planEnabled: u.planEnabled,
+    onboarded: u.onboarded,
+  };
   localStorage.setItem(KEY, JSON.stringify(s));
   return s;
 }
@@ -54,11 +71,13 @@ export function completeOnboarding(): void {
 }
 
 export function signOut(): void {
+  clearToken();
   localStorage.removeItem(KEY);
+  localStorage.removeItem(RECEIPTS);
 }
 
 export function isSignedIn(): boolean {
-  return getSession() !== null;
+  return typeof window !== "undefined" && !!getToken();
 }
 
 export function isOnboarded(): boolean {

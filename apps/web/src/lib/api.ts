@@ -1,4 +1,19 @@
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const TOKEN_KEY = "cadence_token";
+
+export function getToken(): string | null {
+  return typeof window === "undefined" ? null : localStorage.getItem(TOKEN_KEY);
+}
+export function setToken(t: string): void {
+  localStorage.setItem(TOKEN_KEY, t);
+}
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+function authHeader(): Record<string, string> {
+  const t = getToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
 
 /**
  * Resilient request — retries through the backend's free-tier cold start
@@ -11,7 +26,12 @@ async function req<T>(path: string, init: RequestInit = {}, tries = 5): Promise<
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 15000);
-      const res = await fetch(`${BASE}${path}`, { cache: "no-store", ...init, signal: ctrl.signal });
+      const res = await fetch(`${BASE}${path}`, {
+        cache: "no-store",
+        ...init,
+        headers: { ...(init.headers ?? {}), ...authHeader() },
+        signal: ctrl.signal,
+      });
       clearTimeout(timer);
       if (!res.ok) throw new Error(`${path} ${res.status}`);
       return (await res.json()) as T;
@@ -258,3 +278,38 @@ export interface Rule {
 export const getRules = () => get<Rule[]>("/rules");
 export const updateRule = (id: string, patch: Partial<Rule>) =>
   put<Rule>(`/rules/${id}`, patch);
+
+// ── Auth ──
+export interface AuthUser {
+  id: string;
+  email: string;
+  name?: string | null;
+  phone?: string | null;
+  autonomy: "manual" | "hybrid" | "automatic";
+  planEnabled: boolean;
+  onboarded: boolean;
+  hasPin: boolean;
+  hasSafeWord: boolean;
+  bmoniUserId?: string | null;
+  cngnAddress?: string | null;
+  usdbAddress?: string | null;
+}
+
+export const signup = (body: { email: string; password: string; name?: string; phone?: string }) =>
+  post<{ token: string; user: AuthUser }>("/auth/signup", body);
+
+export const login = (body: { email: string; password: string }) =>
+  post<{ token: string; user: AuthUser }>("/auth/login", body);
+
+export const authMe = () => get<{ user: AuthUser }>("/auth/me");
+
+export const onboardUser = (body: {
+  name?: string;
+  phone?: string;
+  autonomy?: "manual" | "hybrid" | "automatic";
+  planEnabled?: boolean;
+  pin?: string;
+  safeWord?: string;
+}) => post<{ user: AuthUser }>("/auth/onboard", body);
+
+export const getServerReceipts = () => get<{ receipts: ExecReceipt[] }>("/receipts");
