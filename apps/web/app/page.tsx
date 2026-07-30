@@ -1,408 +1,143 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { formatMoney } from "@/lib/format";
-import {
-  getLiveBalances,
-  getOverview,
-  getTransactions,
-  getWallets,
-  previewInflow,
-  runLiveConvert,
-  runLiveSend,
-  sendAgentCommand,
-  type ApiTransaction,
-  type InflowPreview,
-  type LiveBalances,
-  type OverviewWallet,
-} from "@/lib/api";
-import {
-  activity as mockActivity,
-  savedVsBankMinor,
-  wallets as mockWallets,
-  type ActivityView,
-  type Risk,
-  type WalletView,
-} from "@/lib/mock";
+import { CadenceWave } from "@/components/CadenceWave";
 
-const PURPOSE_LABEL: Record<string, string> = {
-  main: "Main balance",
-  salary: "Monthly salary",
-  goal: "Savings goal",
-  family: "Family support",
-  hedge: "USD hedge",
-  reserve: "Reserve",
-};
+const beats = [
+  {
+    beat: "one",
+    title: "Guard",
+    body: "Every incoming payment is checked against your pattern — overpayment scams and odd-hour transfers get flagged before a naira moves.",
+  },
+  {
+    beat: "two",
+    title: "Route",
+    body: "Your dollars convert at the best live rate through BMONI, and you see exactly what you saved versus a bank on each one.",
+  },
+  {
+    beat: "three",
+    title: "Allocate",
+    body: "What's left plays out to your plan — a steady salary, goal vaults, family support, and a hedge against the naira sliding.",
+  },
+];
 
-function mapWallet(w: OverviewWallet): WalletView {
-  return {
-    name: w.name,
-    purpose: PURPOSE_LABEL[w.purpose] ?? w.purpose,
-    currency: w.balance.currency as WalletView["currency"],
-    balanceMinor: w.balance.minor,
-    accent: w.purpose === "goal" || w.purpose === "hedge" ? "gold" : undefined,
-  };
-}
-
-function relTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const h = Math.floor(diff / 3_600_000);
-  if (h < 1) return "just now";
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return d === 1 ? "yesterday" : `${d}d ago`;
-}
-
-function mapTx(t: ApiTransaction): ActivityView {
-  const sym = t.amount.currency === "USD" ? "$" : t.amount.currency === "NGN" ? "₦" : "";
-  const flagged = (t.metadata?.risk as Risk) ?? (t.status === "flagged" ? "high" : "clear");
-  const reason = t.metadata?.riskReasons?.[0];
-  const detail =
-    flagged !== "clear" && reason ? reason : `${t.type} · ${t.status}`;
-  return {
-    id: t.id,
-    title: t.counterparty ? `Payment from ${t.counterparty}` : `${t.type} transaction`,
-    detail,
-    amount: `${t.type === "inflow" ? "+" : ""}${sym}${(t.amount.minor / 100).toLocaleString()}`,
-    risk: flagged,
-    time: relTime(t.occurredAt),
-  };
-}
-
-const riskStyles: Record<Risk, string> = {
-  clear: "text-accent bg-accent-soft",
-  watch: "text-warn bg-[rgba(251,191,36,0.12)]",
-  high: "text-danger bg-[rgba(248,113,113,0.12)]",
-};
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-export default function Dashboard() {
-  const [step, setStep] = useState(-1);
-  const [running, setRunning] = useState(false);
-  const [rate, setRate] = useState<number | null>(null);
-  const [preview, setPreview] = useState<InflowPreview | null>(null);
-  const [agentText, setAgentText] = useState("");
-  const [agentReply, setAgentReply] = useState<string | null>(null);
-  const [agentBusy, setAgentBusy] = useState(false);
-  const [liveWallets, setLiveWallets] = useState<WalletView[] | null>(null);
-  const [liveActivity, setLiveActivity] = useState<ActivityView[] | null>(null);
-  const [liveBal, setLiveBal] = useState<LiveBalances | null>(null);
-  const [liveBusy, setLiveBusy] = useState(false);
-  const [liveMsg, setLiveMsg] = useState<string | null>(null);
-
-  function refreshLive() {
-    getLiveBalances()
-      .then(setLiveBal)
-      .catch(() => setLiveBal(null));
-  }
-
-  async function runLive() {
-    if (liveBusy) return;
-    setLiveBusy(true);
-    setLiveMsg(null);
-    try {
-      const r = await runLiveConvert(5);
-      setLiveMsg(
-        `Converted $${r.amountUsd} → ₦${(r.tx.amount.minor / 100).toLocaleString()} at ₦${r.tx.metadata.rate} on BMONI.`,
-      );
-      setLiveBal({ configured: true, wallets: r.after });
-    } catch {
-      setLiveMsg("Live conversion failed — check the sandbox.");
-    }
-    setLiveBusy(false);
-  }
-
-  async function runSend() {
-    if (liveBusy) return;
-    setLiveBusy(true);
-    setLiveMsg(null);
-    try {
-      const r = await runLiveSend(1);
-      setLiveMsg(
-        r.result.ok
-          ? "Sent $1 on BMONI — proposal signed and submitted."
-          : `Send needs a funded wallet (${r.result.step}${r.result.error ? ": " + r.result.error : ""}).`,
-      );
-      setLiveBal({ configured: true, wallets: r.after });
-    } catch {
-      setLiveMsg("Live send failed — check the sandbox.");
-    }
-    setLiveBusy(false);
-  }
-
-  async function sendAgent() {
-    const text = agentText.trim();
-    if (!text || agentBusy) return;
-    setAgentBusy(true);
-    setAgentReply(null);
-    try {
-      const res = await sendAgentCommand(text);
-      setAgentReply(res.reply);
-      setAgentText("");
-    } catch {
-      setAgentReply("I couldn't reach the agent just now — try again.");
-    }
-    setAgentBusy(false);
-  }
-
-  // Pull live rate, wallets and activity on load (fall back to mock on failure).
-  useEffect(() => {
-    getOverview()
-      .then((o) => setRate(o.rate.rate))
-      .catch(() => setRate(null));
-    getWallets()
-      .then((ws) => setLiveWallets(ws.length ? ws.map(mapWallet) : null))
-      .catch(() => setLiveWallets(null));
-    getTransactions(25)
-      .then((ts) => {
-        if (!ts.length) return setLiveActivity(null);
-        const rank: Record<Risk, number> = { high: 2, watch: 1, clear: 0 };
-        const mapped = ts.map(mapTx).sort((a, b) => rank[b.risk] - rank[a.risk]);
-        setLiveActivity(mapped.slice(0, 7));
-      })
-      .catch(() => setLiveActivity(null));
-    refreshLive();
-  }, []);
-
-  const usdLive = liveBal?.wallets.find((w) => w.currency === "USD");
-  const ngnLive = liveBal?.wallets.find((w) => w.currency === "NGN");
-
-  const walletList = liveWallets ?? mockWallets;
-  const activityList = liveActivity ?? mockActivity;
-
-  const stages = [
-    { label: "Guarded", note: "Verified — not the overpayment pattern" },
-    {
-      label: "Routed",
-      note: preview
-        ? `Converted at ₦${preview.rate.toFixed(2)}/$ — saved ${formatMoney(preview.savedVsBankMinor, "NGN")} vs bank`
-        : "Routed via the cheapest path",
-    },
-    {
-      label: "Allocated",
-      note: preview
-        ? `${formatMoney(preview.receivesMinor, "NGN")} → salary, rent vault, home`
-        : "Salary ₦180k · Rent ₦120k · Home ₦40k",
-    },
-  ];
-
-  async function runPipeline() {
-    if (running) return;
-    setRunning(true);
-    setStep(-1);
-    setPreview(null);
-    try {
-      setPreview(await previewInflow(500));
-    } catch {
-      // API offline — fall back to the static narrative
-    }
-    for (let i = 0; i < stages.length; i++) {
-      await sleep(650);
-      setStep(i);
-    }
-    setRunning(false);
-  }
-
-  const heroSaved = preview?.savedVsBankMinor ?? savedVsBankMinor;
-
+export default function Landing() {
   return (
-    <main className="mx-auto max-w-5xl px-5 py-8 sm:py-12">
-      {/* Header */}
-      <header className="mb-8 flex items-center justify-between">
+    <main className="mx-auto max-w-6xl px-5">
+      {/* Nav */}
+      <nav className="flex items-center justify-between py-6">
+        <div className="flex items-center gap-2.5">
+          <div className="h-5 w-8">
+            <CadenceWave bars={8} />
+          </div>
+          <span className="text-lg font-bold tracking-tight">Cadence</span>
+        </div>
+        <Link href="/app" className="text-sm text-muted transition hover:text-ink">
+          Open app →
+        </Link>
+      </nav>
+
+      {/* Hero */}
+      <section className="grid items-center gap-12 py-12 md:grid-cols-2 md:py-20">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Cadence</h1>
-          <p className="text-sm text-muted">Your cross-border money, on autopilot.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/setup" className="text-sm text-muted hover:text-ink">
-            Plan
-          </Link>
-          <span className="chip">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-            {rate ? `Live ₦${rate.toFixed(2)}/$` : "Sandbox · test data"}
-          </span>
-        </div>
-      </header>
-
-      {/* Hero + pipeline */}
-      <section className="mb-6 grid gap-4 md:grid-cols-5">
-        <div className="card md:col-span-2 flex flex-col justify-between">
-          <span className="label">Saved vs your bank{preview ? " · this payment" : " · this quarter"}</span>
-          <div className="mt-3">
-            <div className="text-4xl font-semibold tracking-tight text-gold">
-              {formatMoney(heroSaved, "NGN")}
-            </div>
-            <p className="mt-2 text-sm text-muted">
-              Smarter routing and timing on every dollar you receive.
-            </p>
+          <span className="eyebrow">For freelancers paid in dollars</span>
+          <h1 className="mt-5 text-5xl font-extrabold leading-[0.98] tracking-tight sm:text-6xl">
+            Get paid in dollars.
+            <br />
+            <span className="text-dollar">Live in rhythm.</span>
+          </h1>
+          <p className="mt-6 max-w-md text-lg leading-relaxed text-muted">
+            Cadence is an AI money agent for cross-border earners. The moment your
+            dollars land, it guards them, converts at the best rate, and puts every
+            one to work — salary, goals, family, and a hedge against the naira.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <Link href="/auth" className="btn-primary">
+              Get started
+            </Link>
+            <Link href="/app" className="btn-ghost">
+              Watch it work
+            </Link>
           </div>
+          <p className="mt-6 text-xs text-muted" style={{ fontFamily: "var(--font-mono)" }}>
+            Real BMONI conversions · live FX · sandbox test funds
+          </p>
         </div>
 
-        <div className="card md:col-span-3">
-          <div className="flex items-center justify-between">
-            <span className="label">Incoming payment</span>
-            <button
-              onClick={runPipeline}
-              disabled={running}
-              className="rounded-full bg-accent px-3.5 py-1.5 text-sm font-medium text-black transition disabled:opacity-50"
-            >
-              {running ? "Working…" : "Simulate $500"}
-            </button>
+        {/* Signature */}
+        <div className="card relative overflow-hidden p-6">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-dollar" style={{ fontFamily: "var(--font-mono)" }}>
+              $ in
+            </span>
+            <span className="text-naira" style={{ fontFamily: "var(--font-mono)" }}>
+              ₦ steady
+            </span>
           </div>
-          <ol className="mt-4 space-y-2.5">
-            {stages.map((s, i) => {
-              const active = step >= i;
-              return (
-                <li
-                  key={s.label}
-                  className={`flex items-start gap-3 rounded-xl border p-3 transition ${
-                    active ? "border-border bg-surface2" : "border-transparent opacity-40"
-                  }`}
-                >
-                  <span
-                    className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${
-                      active ? "bg-accent text-black" : "bg-surface2 text-muted"
-                    }`}
-                  >
-                    {active ? "✓" : i + 1}
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium">{s.label}</p>
-                    <p className="text-xs text-muted">{s.note}</p>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
+          <div className="mt-4 h-48">
+            <CadenceWave bars={48} />
+          </div>
+          <p className="mt-5 text-sm text-muted">
+            Irregular income, resolved into a steady beat.
+          </p>
         </div>
       </section>
 
-      {/* Wallets */}
-      <section className="mb-6">
-        <h2 className="label mb-3">Wallets</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {walletList.map((w) => {
-            const pct = w.goal
-              ? Math.min(100, Math.round((w.balanceMinor / w.goal.targetMinor) * 100))
-              : null;
-            return (
-              <div key={w.name} className="card">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{w.name}</span>
-                  <span className="text-xs text-muted">{w.currency}</span>
+      {/* The rhythm */}
+      <section className="border-t border-border py-16">
+        <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          How every dollar moves
+        </h2>
+        <p className="mt-3 max-w-lg text-muted">
+          One agent, one pass — from the second a payment arrives to the moment it's
+          working for you.
+        </p>
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
+          {beats.map((b) => (
+            <div key={b.title} className="card">
+              <div className="flex items-center gap-2 text-dollar">
+                <div className="h-4 w-6">
+                  <CadenceWave bars={5} />
                 </div>
-                <div className={`mt-2 stat ${w.accent === "gold" ? "text-gold" : ""}`}>
-                  {formatMoney(w.balanceMinor, w.currency)}
-                </div>
-                <p className="mt-1 text-xs text-muted">{w.purpose}</p>
-                {pct !== null && (
-                  <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface2">
-                    <div className="h-full rounded-full bg-gold" style={{ width: `${pct}%` }} />
-                  </div>
-                )}
+                <span className="text-xs uppercase tracking-[0.2em]" style={{ fontFamily: "var(--font-mono)" }}>
+                  beat {b.beat}
+                </span>
               </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Live BMONI account */}
-      {liveBal?.configured && (
-        <section className="mb-6">
-          <h2 className="label mb-3">Live BMONI account · real sandbox</h2>
-          <div className="card">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex gap-8">
-                <div>
-                  <span className="label">USDB</span>
-                  <div className="stat">
-                    ${((usdLive?.balance.minor ?? 0) / 100).toLocaleString()}
-                  </div>
-                </div>
-                <div>
-                  <span className="label">CNGN</span>
-                  <div className="stat">
-                    ₦{((ngnLive?.balance.minor ?? 0) / 100).toLocaleString()}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={runLive}
-                  disabled={liveBusy}
-                  className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-black transition disabled:opacity-50"
-                >
-                  {liveBusy ? "…" : "Convert $5 live"}
-                </button>
-                <button
-                  onClick={runSend}
-                  disabled={liveBusy}
-                  className="rounded-full border border-accent px-4 py-2 text-sm font-medium text-accent transition disabled:opacity-50"
-                >
-                  Send $1 live
-                </button>
-              </div>
-            </div>
-            <p className="mt-3 text-xs text-muted">
-              {liveMsg ??
-                "Balances read live from BMONI. Fund the sandbox wallets to move real value."}
-            </p>
-          </div>
-        </section>
-      )}
-
-      {/* Activity */}
-      <section className="mb-24">
-        <h2 className="label mb-3">Recent activity</h2>
-        <div className="card divide-y divide-border p-0">
-          {activityList.map((a) => (
-            <div key={a.id} className="flex items-center gap-4 p-4">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{a.title}</p>
-                <p className="truncate text-xs text-muted">{a.detail}</p>
-              </div>
-              <span className={`rounded-full px-2 py-0.5 text-xs ${riskStyles[a.risk]}`}>
-                {a.risk}
-              </span>
-              <div className="w-24 text-right">
-                <p className="text-sm">{a.amount}</p>
-                <p className="text-xs text-muted">{a.time}</p>
-              </div>
+              <h3 className="mt-4 text-xl font-bold">{b.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted">{b.body}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Agent bar */}
-      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-bg/80 backdrop-blur">
-        <div className="mx-auto max-w-5xl px-5 py-3">
-          {agentReply && (
-            <div className="mb-2 flex items-start gap-2 rounded-xl border border-border bg-surface2 px-3 py-2 text-sm">
-              <span className="mt-0.5 text-accent">✦</span>
-              <p className="text-ink">{agentReply}</p>
-            </div>
-          )}
-          <div className="flex items-center gap-3">
-            <input
-              value={agentText}
-              onChange={(e) => setAgentText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendAgent()}
-              disabled={agentBusy}
-              placeholder="Tell Cadence what to do — “send home ₦60k this month”"
-              className="flex-1 rounded-full border border-border bg-surface px-4 py-2.5 text-sm outline-none placeholder:text-muted focus:border-accent disabled:opacity-60"
-            />
-            <button
-              onClick={sendAgent}
-              disabled={agentBusy || !agentText.trim()}
-              className="rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-black transition disabled:opacity-50"
-            >
-              {agentBusy ? "…" : "Send"}
-            </button>
-          </div>
+      {/* Proof */}
+      <section className="grid gap-6 border-t border-border py-16 sm:grid-cols-3">
+        <div>
+          <div className="stat text-3xl text-dollar">Real</div>
+          <p className="mt-1 text-sm text-muted">Every conversion is a live BMONI sandbox call — not a mock.</p>
         </div>
-      </div>
+        <div>
+          <div className="stat text-3xl text-naira">USD + ₦</div>
+          <p className="mt-1 text-sm text-muted">Managed stablecoin wallets, created with cryptographic proof of ownership.</p>
+        </div>
+        <div>
+          <div className="stat text-3xl">AI</div>
+          <p className="mt-1 text-sm text-muted">Anomaly detection and a natural-language agent that acts on your money.</p>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="border-t border-border py-20 text-center">
+        <h2 className="mx-auto max-w-xl text-4xl font-extrabold tracking-tight">
+          Ready to find your rhythm?
+        </h2>
+        <div className="mt-8 flex justify-center">
+          <Link href="/auth" className="btn-primary">
+            Get started
+          </Link>
+        </div>
+        <p className="mt-16 text-xs text-muted" style={{ fontFamily: "var(--font-mono)" }}>
+          Cadence · Intelligent money for cross-border earners
+        </p>
+      </section>
     </main>
   );
 }

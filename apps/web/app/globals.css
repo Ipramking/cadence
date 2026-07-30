@@ -3,17 +3,32 @@
 @tailwind utilities;
 
 :root {
-  --bg: #08090d;
-  --surface: #111420;
-  --surface-2: #171b29;
-  --border: #232838;
-  --text: #e7eaf2;
-  --muted: #8a91a6;
-  --accent: #34d399;
-  --accent-soft: rgba(52, 211, 153, 0.12);
-  --gold: #f4c95d;
-  --danger: #f87171;
-  --warn: #fbbf24;
+  /* Midnight indigo — money never sleeps */
+  --ink: #0c0e1a;
+  --ink-2: #141726;
+  --ink-3: #1c2032;
+  --line: #282c42;
+  --paper: #eceae1;
+  --muted: #8b90a8;
+
+  /* Dual accent in tension: naira gold (value held) / dollar mint (cross-border) */
+  --naira: #f5b841;
+  --dollar: #57e9ce;
+  --alert: #ff6b6b;
+  --dollar-soft: rgba(87, 233, 206, 0.13);
+  --naira-soft: rgba(245, 184, 65, 0.13);
+
+  /* Aliases so existing components adopt the new palette */
+  --bg: var(--ink);
+  --surface: var(--ink-2);
+  --surface-2: var(--ink-3);
+  --border: var(--line);
+  --text: var(--paper);
+  --accent: var(--dollar);
+  --accent-soft: var(--dollar-soft);
+  --gold: var(--naira);
+  --danger: var(--alert);
+  --warn: var(--naira);
 }
 
 * {
@@ -22,24 +37,102 @@
 
 body {
   background:
-    radial-gradient(1200px 600px at 80% -10%, rgba(52, 211, 153, 0.06), transparent),
-    var(--bg);
-  color: var(--text);
+    radial-gradient(900px 500px at 88% -8%, rgba(87, 233, 206, 0.07), transparent),
+    radial-gradient(700px 500px at 8% 108%, rgba(245, 184, 65, 0.05), transparent),
+    var(--ink);
+  color: var(--paper);
   min-height: 100vh;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+::selection {
+  background: var(--dollar);
+  color: #06231d;
 }
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-border bg-surface p-5;
+    @apply rounded-2xl border p-5;
+    background: var(--surface);
   }
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-full border border-border bg-surface2 px-2.5 py-1 text-xs text-muted;
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs;
+    background: var(--surface-2);
+    color: var(--muted);
+    font-family: var(--font-mono);
   }
   .stat {
-    @apply text-2xl font-semibold tracking-tight text-ink;
+    @apply text-2xl font-semibold tracking-tight;
+    color: var(--paper);
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum" 1;
   }
   .label {
-    @apply text-xs uppercase tracking-wide text-muted;
+    @apply text-xs uppercase;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    letter-spacing: 0.14em;
+  }
+  .eyebrow {
+    @apply inline-flex items-center gap-2 text-xs uppercase;
+    color: var(--dollar);
+    font-family: var(--font-mono);
+    letter-spacing: 0.2em;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition disabled:opacity-50;
+    background: var(--dollar);
+    color: #06231d;
+  }
+  .btn-primary:hover {
+    filter: brightness(1.08);
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border px-5 py-2.5 text-sm font-medium transition disabled:opacity-50;
+    color: var(--paper);
+  }
+  .btn-ghost:hover {
+    border-color: var(--dollar);
+    color: var(--dollar);
+  }
+}
+
+/* ── Cadence waveform: irregular income resolving into a steady pulse ── */
+.wave {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 100%;
+}
+.wave span {
+  flex: 1;
+  border-radius: 999px;
+  transform-origin: bottom;
+  animation: cadence-bar 1.6s ease-in-out infinite;
+}
+@keyframes cadence-bar {
+  0%,
+  100% {
+    transform: scaleY(0.28);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wave span {
+    animation: none;
+    transform: scaleY(0.7);
   }
 }

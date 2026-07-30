@@ -53,7 +53,7 @@ export default function Setup() {
   return (
     <main className="mx-auto max-w-2xl px-5 py-10">
       <header className="mb-8">
-        <Link href="/" className="text-sm text-muted hover:text-ink">
+        <Link href="/app" className="text-sm text-muted hover:text-ink">
           ← Back to dashboard
         </Link>
         <h1 className="mt-3 text-2xl font-semibold tracking-tight">Your money plan</h1>
