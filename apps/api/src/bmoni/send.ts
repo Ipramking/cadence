@@ -1,5 +1,5 @@
 import { bmoniFetch } from "./http.js";
-import { ownerContext } from "./real.js";
+import { ownerContext, type OwnerContext } from "./real.js";
 
 interface SendResponse {
   data: {
@@ -25,14 +25,17 @@ interface SendResponse {
  * The raw send response is returned so the exact proposal-id path can be
  * confirmed against a funded wallet (the send endpoint 404s until funded).
  */
-export async function liveSend(amountUsd: number): Promise<{
+export async function liveSend(
+  amountUsd: number,
+  ownerArg?: OwnerContext | null,
+): Promise<{
   ok: boolean;
   step: string;
   sendResponse?: unknown;
   signResponse?: unknown;
   error?: string;
 }> {
-  const owner = ownerContext();
+  const owner = ownerArg ?? ownerContext();
   if (!owner) return { ok: false, step: "owner", error: "no provisioned owner" };
 
   // Wallet id from the file when present, otherwise fetched from BMONI (hosting).

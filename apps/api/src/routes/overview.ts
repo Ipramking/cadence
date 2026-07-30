@@ -1,17 +1,17 @@
 import type { FastifyInstance } from "fastify";
 import { bmoniClient } from "../services/bmoni/provider.js";
-import { sandbox } from "../bmoni/real.js";
+import { resolveBmoni } from "../userBmoni.js";
 
 /**
- * Live dashboard summary: the account's wallets (from the product provider)
- * and the current USD/NGN rate (from live BMONI when configured).
+ * Live dashboard summary: wallets (from the product provider) and the current
+ * USD/NGN rate (from the caller's live BMONI account).
  */
 export async function overviewRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/overview", async () => {
-    const real = sandbox();
+  app.get("/overview", async (req) => {
+    const ctx = await resolveBmoni(req);
     const [wallets, rate] = await Promise.all([
       bmoniClient.listWallets(),
-      (real ?? bmoniClient).getRate("USD", "NGN"),
+      (ctx?.client ?? bmoniClient).getRate("USD", "NGN"),
     ]);
     return { wallets, rate };
   });

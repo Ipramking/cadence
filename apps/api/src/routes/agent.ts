@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { parseCommand } from "../ai/index.js";
 import { chatAgent, interpret, parsePaymentImage } from "../ai/agent.js";
-import { sandbox } from "../bmoni/real.js";
 import { resolvePayee } from "../directory.js";
+import { resolveBmoni, appUserId } from "../userBmoni.js";
+import type { SandboxBmoniClient } from "../bmoni/sandbox.js";
 import { prisma } from "../db.js";
 
 type Cur = "USD" | "NGN";
@@ -12,6 +13,7 @@ async function routeFor(
   amountMinor: number,
   payCurrency: Cur,
   sourceCurrency: Cur,
+  client?: SandboxBmoniClient | null,
 ): Promise<null | {
   fromCurrency: Cur;
   toCurrency: Cur;
@@ -22,8 +24,7 @@ async function routeFor(
   if (payCurrency === sourceCurrency) return null;
   let rate = 1;
   try {
-    const real = sandbox();
-    rate = real ? (await real.getRate(sourceCurrency, payCurrency)).rate : 1550;
+    rate = client ? (await client.getRate(sourceCurrency, payCurrency)).rate : 1550;
   } catch {
     rate = 1550;
   }
@@ -85,9 +86,10 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
     const isMoney =
       action.serious || ["pay", "convert", "allocate"].includes(action.intent);
 
+    const ctx = await resolveBmoni(req);
     let route = null;
     if (action.intent === "pay" && action.amountMinor && action.currency) {
-      route = await routeFor(action.amountMinor, action.currency, source);
+      route = await routeFor(action.amountMinor, action.currency, source, ctx?.client);
     }
     const payee = action.intent === "pay" && action.recipient ? resolvePayee(action.recipient) : null;
     return { ...action, route, payee, needsConfirm: isMoney };
@@ -100,15 +102,16 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
     };
     const result = await chatAgent(body.messages ?? []);
     const s = result.slots;
+    const ctx = await resolveBmoni(req);
 
     let route = null;
     let payee = null;
     if (result.ready && s.amountMinor) {
       if (result.type === "convert" && s.fromCurrency && s.toCurrency && s.fromCurrency !== s.toCurrency) {
-        route = await routeFor(s.amountMinor, s.toCurrency, s.fromCurrency);
+        route = await routeFor(s.amountMinor, s.toCurrency, s.fromCurrency, ctx?.client);
       } else if (s.currency) {
         // send/transfer/bills spend from the USD balance and route to the target currency
-        route = await routeFor(s.amountMinor, s.currency, "USD");
+        route = await routeFor(s.amountMinor, s.currency, "USD", ctx?.client);
       }
       const rcp = s.recipient ?? s.phone ?? s.accountNumber;
       if ((result.type === "send" || result.type === "transfer") && rcp) {
@@ -149,29 +152,42 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
     const currency = s.currency ?? "NGN";
 
     const label = describeDestination(type, s);
-    const tx = await prisma.transaction.create({
-      data: {
-        type: "payout",
-        amountMinor,
-        currency,
-        status: "settled",
-        counterparty: label,
-        metadata: JSON.stringify({ receipt: true, txType: type, route: body.route ?? null, note: body.note ?? null }),
-      },
-    });
+    const reference = `CDN${Date.now().toString().slice(-10)}`;
+    const uid = appUserId(req);
+    let id: string;
+    let at: string;
+    if (uid) {
+      const r = await prisma.receipt.create({
+        data: {
+          userId: uid,
+          reference,
+          txType: type,
+          recipient: label,
+          amountMinor,
+          currency,
+          metadata: JSON.stringify({ route: body.route ?? null, note: body.note ?? null }),
+        },
+      });
+      id = r.id;
+      at = r.createdAt.toISOString();
+    } else {
+      const tx = await prisma.transaction.create({
+        data: {
+          type: "payout",
+          amountMinor,
+          currency,
+          status: "settled",
+          counterparty: label,
+          metadata: JSON.stringify({ receipt: true, txType: type, route: body.route ?? null, reference }),
+        },
+      });
+      id = tx.id;
+      at = tx.occurredAt.toISOString();
+    }
 
     return {
       ok: true,
-      receipt: {
-        id: tx.id,
-        reference: `CDN${tx.id.replace(/\D/g, "").slice(0, 10).padEnd(10, "0")}`,
-        txType: type,
-        recipient: label,
-        amountMinor,
-        currency,
-        route: body.route ?? null,
-        at: tx.occurredAt.toISOString(),
-      },
+      receipt: { id, reference, txType: type, recipient: label, amountMinor, currency, route: body.route ?? null, at },
     };
   });
 
@@ -190,46 +206,45 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
     }
     const source = body.sourceCurrency ?? "USD";
 
-    let route = null;
-    if (source !== currency) {
-      // Real BMONI conversion for the route (live request on the money path).
-      try {
-        const real = sandbox();
-        const rate = real ? (await real.getRate(source, currency)).rate : 1550;
-        route = {
-          fromCurrency: source,
-          toCurrency: currency,
-          rate,
-          sourceMinor: Math.round(amountMinor / rate),
-          targetMinor: amountMinor,
-        };
-      } catch {
-        route = null;
-      }
-    }
+    const ctx = await resolveBmoni(req);
+    const route = source !== currency ? await routeFor(amountMinor, currency, source, ctx?.client) : null;
+    const reference = `CDN${Date.now().toString().slice(-10)}`;
+    const uid = appUserId(req);
 
-    const tx = await prisma.transaction.create({
-      data: {
-        type: "payout",
-        amountMinor,
-        currency,
-        status: "settled",
-        counterparty: recipient,
-        metadata: JSON.stringify({ receipt: true, note: body.note ?? null, route }),
-      },
-    });
+    let id: string;
+    let at: string;
+    if (uid) {
+      const r = await prisma.receipt.create({
+        data: {
+          userId: uid,
+          reference,
+          txType: "send",
+          recipient,
+          amountMinor,
+          currency,
+          metadata: JSON.stringify({ route, note: body.note ?? null }),
+        },
+      });
+      id = r.id;
+      at = r.createdAt.toISOString();
+    } else {
+      const tx = await prisma.transaction.create({
+        data: {
+          type: "payout",
+          amountMinor,
+          currency,
+          status: "settled",
+          counterparty: recipient,
+          metadata: JSON.stringify({ receipt: true, note: body.note ?? null, route, reference }),
+        },
+      });
+      id = tx.id;
+      at = tx.occurredAt.toISOString();
+    }
 
     return {
       ok: true,
-      receipt: {
-        id: tx.id,
-        recipient,
-        amountMinor,
-        currency,
-        route,
-        note: body.note ?? null,
-        at: tx.occurredAt.toISOString(),
-      },
+      receipt: { id, reference, recipient, amountMinor, currency, route, note: body.note ?? null, at },
     };
   });
 }

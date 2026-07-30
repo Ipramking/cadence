@@ -72,6 +72,27 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     return { token: signToken(user.id), user: sanitize(user) };
   });
 
+  app.get("/receipts", async (req, reply) => {
+    const uid = requireUserId(req);
+    if (!uid) return reply.status(401).send({ error: "Not signed in" });
+    const receipts = await prisma.receipt.findMany({
+      where: { userId: uid },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+    return {
+      receipts: receipts.map((r) => ({
+        id: r.id,
+        reference: r.reference,
+        txType: r.txType,
+        recipient: r.recipient,
+        amountMinor: r.amountMinor,
+        currency: r.currency,
+        at: r.createdAt.toISOString(),
+      })),
+    };
+  });
+
   app.get("/auth/me", async (req, reply) => {
     const uid = requireUserId(req);
     const user = uid ? await prisma.user.findUnique({ where: { id: uid } }) : null;
