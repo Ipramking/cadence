@@ -15,10 +15,10 @@ const config: Config = {
         primary: "var(--primary)",
         primary2: "var(--primary-2)",
         "primary-soft": "var(--primary-soft)",
+        info: "var(--info)",
         success: "var(--success)",
         warn: "var(--warn)",
         danger: "var(--danger)",
-        // legacy aliases (kept until every page is migrated)
         accent: "var(--primary)",
         "accent-soft": "var(--primary-soft)",
         dollar: "var(--primary)",
@@ -30,9 +30,9 @@ const config: Config = {
         "2xl": "1.25rem",
       },
       fontFamily: {
-        serif: ["var(--font-serif)", "Georgia", "serif"],
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "monospace"],
+        serif: ["var(--font-sans)", "system-ui", "sans-serif"],
       },
     },
   },

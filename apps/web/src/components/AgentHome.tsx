@@ -350,10 +350,10 @@ function ConfirmCard({
         <span className="stat text-xl">{formatMoney(p.amountMinor, p.currency)}</span>
       </div>
       {p.route && (
-        <p className="mt-2 rounded-lg bg-surface2 px-3 py-2 text-xs text-muted">
-          Paid from your dollars — {formatMoney(p.route.sourceMinor, "USD")} converted at ₦
-          {p.route.rate}/$ via BMONI.
-        </p>
+        <div className="callout mt-2 text-xs">
+          Paid from your dollars — <span className="code">{formatMoney(p.route.sourceMinor, "USD")}</span>{" "}
+          converted at <span className="code">₦{p.route.rate}/$</span> via BMONI.
+        </div>
       )}
       {done ? (
         <p className="mt-3 text-sm text-success">✓ Sent</p>

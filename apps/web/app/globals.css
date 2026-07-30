@@ -3,17 +3,21 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0a0b12;
-  --surface: #111320;
-  --surface-2: #181b29;
-  --border: #242839;
-  --foreground: #ecedf5;
-  --muted: #9ba1b8;
+  /* Near-black, BMONI-docs flavour */
+  --bg: #0a0a0d;
+  --surface: #141417;
+  --surface-2: #1c1c22;
+  --border: #27272e;
+  --foreground: #ececf0;
+  --muted: #9a9aa6;
 
-  --primary: #5b5bf6;
-  --primary-2: #8280fa;
-  --primary-soft: rgba(91, 91, 246, 0.15);
+  /* BMONI violet */
+  --primary: #a855f7;
+  --primary-2: #c084fc;
+  --primary-soft: rgba(168, 85, 247, 0.15);
 
+  --info: #60a5fa;
+  --info-soft: rgba(96, 165, 250, 0.12);
   --success: #46d08a;
   --warn: #e6b24d;
   --danger: #f76d6d;
@@ -30,8 +34,8 @@
 
 body {
   background:
-    radial-gradient(760px 460px at 84% -6%, rgba(91, 91, 246, 0.12), transparent),
-    radial-gradient(620px 420px at 6% 106%, rgba(91, 91, 246, 0.06), transparent),
+    radial-gradient(760px 460px at 84% -8%, rgba(168, 85, 247, 0.12), transparent),
+    radial-gradient(620px 420px at 6% 106%, rgba(168, 85, 247, 0.05), transparent),
     var(--bg);
   color: var(--foreground);
   min-height: 100vh;
@@ -44,13 +48,11 @@ body {
   color: #fff;
 }
 
-/* Editorial serif-italic — the signature header treatment */
+/* Accent word treatment (was serif; now a clean violet emphasis) */
 .display {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-weight: 400;
+  color: var(--primary-2);
+  font-weight: 700;
   letter-spacing: -0.01em;
-  line-height: 1.02;
 }
 
 @layer components {
@@ -69,9 +71,24 @@ body {
     color: #fff;
     font-variant-numeric: tabular-nums;
   }
+  /* inline monospace token, like the docs' code chips */
+  .code {
+    @apply inline-flex items-center rounded-md border px-1.5 py-0.5 text-xs;
+    background: var(--surface-2);
+    color: var(--primary-2);
+    font-family: var(--font-mono);
+  }
+  /* info callout box, like the docs' note blocks */
+  .callout {
+    @apply rounded-xl border p-3 text-sm;
+    border-color: rgba(96, 165, 250, 0.3);
+    background: var(--info-soft);
+    color: var(--foreground);
+  }
   .stat {
     @apply text-2xl font-semibold tracking-tight;
     color: var(--foreground);
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
   }
   .label {
@@ -150,7 +167,6 @@ body {
 .twinkle {
   animation: twinkle 3.5s ease-in-out infinite;
 }
-
 @keyframes float {
   0%,
   100% {
@@ -163,7 +179,6 @@ body {
 .float {
   animation: float 5.5s ease-in-out infinite;
 }
-
 @keyframes rise {
   from {
     opacity: 0;

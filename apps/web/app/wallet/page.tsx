@@ -106,11 +106,7 @@ export default function WalletPage() {
                 <p className="text-sm font-medium">
                   {w.currency === "USD" ? "USD wallet · USDB" : "Naira wallet · CNGN"}
                 </p>
-                {w.address && (
-                  <p className="mt-0.5 text-xs text-muted" style={{ fontFamily: "var(--font-mono)" }}>
-                    {short(w.address)}
-                  </p>
-                )}
+                {w.address && <span className="code mt-1 inline-block">{short(w.address)}</span>}
               </div>
               <span className="stat text-lg">
                 {formatMoney(w.balance.minor, w.currency as "USD" | "NGN")}

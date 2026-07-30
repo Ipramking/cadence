@@ -120,9 +120,10 @@ export function SendSheet({ onClose, onPaid }: { onClose: () => void; onPaid?: (
                 <span className="stat text-xl">{formatMoney(amountMinor, currency)}</span>
               </div>
               {route && (
-                <p className="mt-2 rounded-lg bg-surface2 px-3 py-2 text-xs text-muted">
-                  Paid from your dollars — {formatMoney(route.sourceMinor, "USD")} converted at ₦{route.rate}/$ via BMONI.
-                </p>
+                <div className="callout mt-2 text-xs">
+                  Paid from your dollars — <span className="code">{formatMoney(route.sourceMinor, "USD")}</span>{" "}
+                  converted at <span className="code">₦{route.rate}/$</span> via BMONI.
+                </div>
               )}
             </div>
             <input
