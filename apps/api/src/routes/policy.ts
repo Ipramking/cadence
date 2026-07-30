@@ -54,7 +54,7 @@ export async function enforceGuardrails(
       ok: false,
       code: "over_payment_cap",
       limitMinor: user.perPaymentCapMinor,
-      message: `That's over your per-payment limit of ${(user.perPaymentCapMinor / 100).toLocaleString()}.`,
+      message: `That's over your per-payment limit of $${(user.perPaymentCapMinor / 100).toLocaleString()}.`,
     };
   }
 
@@ -71,7 +71,7 @@ export async function enforceGuardrails(
         ok: false,
         code: "over_daily_cap",
         limitMinor: user.dailyCapMinor,
-        message: `That would pass your daily limit of ${(user.dailyCapMinor / 100).toLocaleString()}.`,
+        message: `That would pass your daily limit of $${(user.dailyCapMinor / 100).toLocaleString()}.`,
       };
     }
   }
