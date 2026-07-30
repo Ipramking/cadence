@@ -168,6 +168,9 @@ export function AgentHome({ autonomy = "automatic" }: { autonomy?: string }) {
           <span className="chip">{autonomy}</span>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/wallet" className="btn-ghost px-3 py-1.5 text-xs">
+            Wallet
+          </Link>
           <button onClick={() => setShowReceipts(true)} className="btn-ghost px-3 py-1.5 text-xs">
             Receipts
           </button>

@@ -37,8 +37,8 @@ export function getSession(): Session | null {
 }
 
 export function signIn(name: string, email: string): Session {
-  const existing = getSession();
-  const s: Session = { ...DEFAULTS, ...existing, name, email };
+  // Every sign-in starts a fresh account so onboarding always runs.
+  const s: Session = { ...DEFAULTS, name, email };
   localStorage.setItem(KEY, JSON.stringify(s));
   return s;
 }

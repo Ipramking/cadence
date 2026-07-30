@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { sandbox } from "../bmoni/real.js";
+import { sandbox, ownerContext } from "../bmoni/real.js";
+import { bmoniFetch } from "../bmoni/http.js";
 import { liveSend } from "../bmoni/send.js";
 
 /**
@@ -12,7 +13,23 @@ export async function liveRoutes(app: FastifyInstance): Promise<void> {
   app.get("/live/balances", async () => {
     const real = sandbox();
     if (!real) return { configured: false, wallets: [] };
-    return { configured: true, wallets: await real.listWallets() };
+    const wallets = (await real.listWallets()) as (Awaited<
+      ReturnType<typeof real.listWallets>
+    >[number] & { address?: string })[];
+    // Enrich with the on-chain smart-wallet addresses.
+    try {
+      const owner = ownerContext();
+      if (owner) {
+        const raw = await bmoniFetch<{ id: string; walletAddress: string }[]>(
+          `/v1/users/${owner.userId}/smart-wallets/account/wallets`,
+        );
+        const byId = new Map(raw.map((w) => [w.id, w.walletAddress]));
+        wallets.forEach((w) => (w.address = byId.get(w.id)));
+      }
+    } catch {
+      /* addresses are best-effort */
+    }
+    return { configured: true, wallets };
   });
 
   app.post("/live/convert", async (req) => {

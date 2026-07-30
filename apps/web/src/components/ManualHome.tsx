@@ -33,7 +33,7 @@ export function ManualHome() {
       <header className="flex items-center justify-between">
         <span className="text-lg font-extrabold tracking-tight">Cadence</span>
         <div className="flex items-center gap-2">
-          <span className="chip">manual</span>
+          <Link href="/wallet" className="btn-ghost px-3 py-1.5 text-xs">Wallet</Link>
           <Link href="/settings" className="btn-ghost px-3 py-1.5 text-xs">Settings</Link>
         </div>
       </header>

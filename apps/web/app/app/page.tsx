@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSession, isSignedIn, type Autonomy } from "@/lib/session";
+import { getSession, isOnboarded, isSignedIn, type Autonomy } from "@/lib/session";
 import { AgentHome } from "@/components/AgentHome";
 import { ManualHome } from "@/components/ManualHome";
 import { HybridHome } from "@/components/HybridHome";
@@ -15,6 +15,10 @@ export default function Home() {
   useEffect(() => {
     if (!isSignedIn()) {
       router.replace("/auth");
+      return;
+    }
+    if (!isOnboarded()) {
+      router.replace("/onboarding");
       return;
     }
     setAutonomy(getSession()?.autonomy ?? "automatic");

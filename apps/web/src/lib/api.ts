@@ -83,6 +83,7 @@ export interface LiveWallet {
   id: string;
   currency: string;
   balance: { minor: number; currency: string };
+  address?: string;
 }
 
 export interface LiveBalances {
