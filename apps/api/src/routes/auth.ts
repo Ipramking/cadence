@@ -111,45 +111,16 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const parsed = onboardSchema.safeParse(req.body ?? {});
     const prefs = parsed.success ? parsed.data : {};
 
-    // Prefer the name/phone entered during onboarding — BMONI matches test
-    // tokens on the phone the account is provisioned with.
     const name = prefs.name?.trim() || user.name || undefined;
     const phone = prefs.phone?.trim() || user.phone || undefined;
 
-    // Provision the user's own BMONI wallets — best effort, time-capped. If it
-    // fails or is slow, we still onboard them; money endpoints fall back to the
-    // shared funded demo account, so the experience is never blocked.
-    let bmoniFields: Record<string, unknown> = {};
-    let provisioned = !!user.bmoniUserId;
-    if (!user.bmoniUserId) {
-      try {
-        const timeout = new Promise<never>((_, rej) =>
-          setTimeout(() => rej(new Error("provision timeout")), 18000),
-        );
-        const prov = await Promise.race([
-          provisionSandboxUser({ name, email: user.email, phone }),
-          timeout,
-        ]);
-        const cngn = prov.wallets.find((w) => w.currency === "CNGN");
-        const usdb = prov.wallets.find((w) => w.currency === "USDB");
-        bmoniFields = {
-          bmoniUserId: prov.bmoniUserId,
-          ownerKeyEnc: encrypt(prov.ownerPrivateKey),
-          cngnWalletId: cngn?.id,
-          usdbWalletId: usdb?.id,
-          cngnAddress: cngn?.address,
-          usdbAddress: usdb?.address,
-        };
-        provisioned = true;
-      } catch (e) {
-        req.log.error({ err: e }, "BMONI provisioning failed — onboarding on demo account");
-      }
-    }
-
+    // Onboard INSTANTLY in simulated mode — the user immediately has seeded
+    // wallets ($50 / ₦10,000) and every screen works. Real BMONI provisioning
+    // is opt-in (BMONI_PROVISION=on) and runs in the background; without it we
+    // stay in the consistent, funded simulation, which is what the demo needs.
     const updated = await prisma.user.update({
       where: { id: uid! },
       data: {
-        ...bmoniFields,
         name,
         phone,
         autonomy: prefs.autonomy ?? user.autonomy,
@@ -159,7 +130,31 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         onboarded: true,
       },
     });
-    return { user: sanitize(updated), provisioned };
+
+    if (!user.bmoniUserId && process.env.BMONI_PROVISION === "on") {
+      void (async () => {
+        try {
+          const prov = await provisionSandboxUser({ name, email: user.email, phone });
+          const cngn = prov.wallets.find((w) => w.currency === "CNGN");
+          const usdb = prov.wallets.find((w) => w.currency === "USDB");
+          await prisma.user.update({
+            where: { id: uid! },
+            data: {
+              bmoniUserId: prov.bmoniUserId,
+              ownerKeyEnc: encrypt(prov.ownerPrivateKey),
+              cngnWalletId: cngn?.id,
+              usdbWalletId: usdb?.id,
+              cngnAddress: cngn?.address,
+              usdbAddress: usdb?.address,
+            },
+          });
+        } catch (e) {
+          req.log.error({ err: e }, "background BMONI provisioning failed — staying simulated");
+        }
+      })();
+    }
+
+    return { user: sanitize(updated), provisioned: !!user.bmoniUserId };
   });
 
   // Update preferences only — never provisions (used after onboarding + settings).
