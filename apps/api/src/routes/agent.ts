@@ -4,6 +4,7 @@ import { chatAgent, interpret, parsePaymentImage } from "../ai/agent.js";
 import { resolvePayee } from "../directory.js";
 import { resolveBmoni, appUserId } from "../userBmoni.js";
 import { enforceGuardrails } from "./policy.js";
+import { simDeduct } from "../sim.js";
 import type { SandboxBmoniClient } from "../bmoni/sandbox.js";
 import { prisma } from "../db.js";
 
@@ -183,13 +184,12 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
     const currency = s.currency ?? "NGN";
 
     // Trust Architecture — enforce spending guardrails / freeze before moving money.
-    const guard = await enforceGuardrails(
-      req,
-      usdEquivalent(amountMinor, currency, body.route as { sourceMinor?: number } | null),
-    );
+    const usdMinor = usdEquivalent(amountMinor, currency, body.route as { sourceMinor?: number } | null);
+    const guard = await enforceGuardrails(req, usdMinor);
     if (!guard.ok) {
       return { ok: false, error: guard.message, code: guard.code };
     }
+    await simDeduct(req, usdMinor); // reflect spending in simulated balances (no-op for real users)
 
     const label = describeDestination(type, s);
     const reference = `CDN${Date.now().toString().slice(-10)}`;
@@ -250,10 +250,12 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
     const route = source !== currency ? await routeFor(amountMinor, currency, source, ctx?.client) : null;
 
     // Trust Architecture — enforce spending guardrails / freeze before moving money.
-    const guard = await enforceGuardrails(req, usdEquivalent(amountMinor, currency, route));
+    const usdMinor = usdEquivalent(amountMinor, currency, route);
+    const guard = await enforceGuardrails(req, usdMinor);
     if (!guard.ok) {
       return { ok: false, error: guard.message, code: guard.code };
     }
+    await simDeduct(req, usdMinor); // reflect spending in simulated balances (no-op for real users)
 
     const reference = `CDN${Date.now().toString().slice(-10)}`;
     const uid = appUserId(req);

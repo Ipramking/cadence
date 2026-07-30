@@ -2,14 +2,19 @@ import type { FastifyInstance } from "fastify";
 import { bmoniFetch } from "../bmoni/http.js";
 import { liveSend } from "../bmoni/send.js";
 import { resolveBmoni } from "../userBmoni.js";
+import { simUser, simWallets, simConvert, simSend } from "../sim.js";
 
 /**
- * Live window onto the caller's BMONI account (their own when signed in, else
- * the funded demo account). Balances come straight from BMONI; convert/send run
- * real exchange/transfer and report balances so movement is visible.
+ * Live window onto the caller's money. When the user has a real BMONI account,
+ * balances/convert/send hit BMONI. When they don't (provisioning was
+ * unavailable), everything runs against local simulated balances instead — so
+ * the wallet, conversion and payments always work end-to-end.
  */
 export async function liveRoutes(app: FastifyInstance): Promise<void> {
   app.get("/live/balances", async (req) => {
+    const sim = await simUser(req);
+    if (sim) return { configured: true, simulated: true, wallets: simWallets(sim) };
+
     const ctx = await resolveBmoni(req);
     if (!ctx) return { configured: false, wallets: [] };
     const wallets = (await ctx.client.listWallets()) as (Awaited<
@@ -29,11 +34,14 @@ export async function liveRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/live/convert", async (req) => {
-    const ctx = await resolveBmoni(req);
-    if (!ctx) return { configured: false };
     const body = (req.body ?? {}) as { amountUsd?: number };
     const usd = Math.min(10, Math.max(1, Math.round(body.amountUsd ?? 5)));
 
+    const sim = await simUser(req);
+    if (sim) return { configured: true, simulated: true, amountUsd: usd, ...(await simConvert(sim, usd)) };
+
+    const ctx = await resolveBmoni(req);
+    if (!ctx) return { configured: false };
     const before = await ctx.client.listWallets();
     const tx = await ctx.client.convert({ amount: { minor: usd * 100, currency: "USD" }, to: "NGN" });
     const after = await ctx.client.listWallets();
@@ -43,11 +51,14 @@ export async function liveRoutes(app: FastifyInstance): Promise<void> {
 
   // Real send that moves USDB out (delivered as CNGN), signed with the owner key.
   app.post("/live/send", async (req) => {
-    const ctx = await resolveBmoni(req);
-    if (!ctx) return { configured: false };
     const body = (req.body ?? {}) as { amountUsd?: number };
     const usd = Math.min(10, Math.max(1, Math.round(body.amountUsd ?? 1)));
 
+    const sim = await simUser(req);
+    if (sim) return { configured: true, simulated: true, amountUsd: usd, ...(await simSend(sim, usd)) };
+
+    const ctx = await resolveBmoni(req);
+    if (!ctx) return { configured: false };
     const before = await ctx.client.listWallets();
     const result = await liveSend(usd, ctx.owner);
     const after = await ctx.client.listWallets();

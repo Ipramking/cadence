@@ -122,6 +122,7 @@ export interface LiveWallet {
 
 export interface LiveBalances {
   configured: boolean;
+  simulated?: boolean;
   wallets: LiveWallet[];
 }
 

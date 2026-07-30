@@ -31,6 +31,11 @@ model User {
   dailyCapMinor      Int? // max the agent may move per day (USD minor)
   allowlistOnly      Boolean @default(false) // only pay known recipients
   agentFrozen        Boolean @default(false) // kill-switch: halt all agent money movement
+  // Simulated wallet balances — used when real BMONI provisioning is unavailable
+  // (a user is in "simulated mode" when they have no bmoniUserId). Minor units:
+  // USD in cents, NGN in kobo.
+  simUsdMinor        Int     @default(5000)    // $50.00
+  simNgnMinor        Int     @default(1000000) // ₦10,000.00
   createdAt    DateTime  @default(now())
   receipts     Receipt[]
 }
