@@ -1,5 +1,47 @@
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
+/**
+ * Resilient request — retries through the backend's free-tier cold start
+ * (which can take ~30–50s) with a per-attempt timeout, so the UI recovers
+ * instead of hanging on a stuck "connecting" state.
+ */
+async function req<T>(path: string, init: RequestInit = {}, tries = 5): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 15000);
+      const res = await fetch(`${BASE}${path}`, { cache: "no-store", ...init, signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error(`${path} ${res.status}`);
+      return (await res.json()) as T;
+    } catch (e) {
+      lastErr = e;
+      if (i < tries - 1) await new Promise((r) => setTimeout(r, 1200 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
+const get = <T>(path: string) => req<T>(path);
+const post = <T>(path: string, body: unknown) =>
+  req<T>(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+const put = <T>(path: string, body: unknown) =>
+  req<T>(path, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+/** Wake the backend early (and keep it warm while the app is open). */
+export function warmup(): void {
+  req("/health", {}, 6).catch(() => {});
+}
+
 export interface OverviewWallet {
   id: string;
   name: string;
@@ -13,17 +55,8 @@ export interface Overview {
   rate: { from: string; to: string; rate: number; asOf: string };
 }
 
-export async function getOverview(): Promise<Overview> {
-  const res = await fetch(`${BASE}/overview`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`overview ${res.status}`);
-  return res.json();
-}
-
-export async function getWallets(): Promise<OverviewWallet[]> {
-  const res = await fetch(`${BASE}/wallets`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`wallets ${res.status}`);
-  return res.json();
-}
+export const getOverview = () => get<Overview>("/overview");
+export const getWallets = () => get<OverviewWallet[]>("/wallets");
 
 export interface ApiTransaction {
   id: string;
@@ -35,11 +68,8 @@ export interface ApiTransaction {
   metadata?: { risk?: string; riskReasons?: string[] } & Record<string, unknown>;
 }
 
-export async function getTransactions(limit = 8): Promise<ApiTransaction[]> {
-  const res = await fetch(`${BASE}/transactions?limit=${limit}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`transactions ${res.status}`);
-  return res.json();
-}
+export const getTransactions = (limit = 8) =>
+  get<ApiTransaction[]>(`/transactions?limit=${limit}`);
 
 export interface InflowPreview {
   amountUsd: number;
@@ -49,16 +79,8 @@ export interface InflowPreview {
   savedVsBankMinor: number;
 }
 
-export async function previewInflow(amountUsd: number): Promise<InflowPreview> {
-  const res = await fetch(`${BASE}/pipeline/preview`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ amountUsd }),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`preview ${res.status}`);
-  return res.json();
-}
+export const previewInflow = (amountUsd: number) =>
+  post<InflowPreview>("/pipeline/preview", { amountUsd });
 
 export interface AgentResult {
   action: string;
@@ -68,16 +90,8 @@ export interface AgentResult {
   reply: string;
 }
 
-export async function sendAgentCommand(text: string): Promise<AgentResult> {
-  const res = await fetch(`${BASE}/agent/command`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`agent ${res.status}`);
-  return res.json();
-}
+export const sendAgentCommand = (text: string) =>
+  post<AgentResult>("/agent/command", { text });
 
 export interface LiveWallet {
   id: string;
@@ -91,11 +105,7 @@ export interface LiveBalances {
   wallets: LiveWallet[];
 }
 
-export async function getLiveBalances(): Promise<LiveBalances> {
-  const res = await fetch(`${BASE}/live/balances`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`live balances ${res.status}`);
-  return res.json();
-}
+export const getLiveBalances = () => get<LiveBalances>("/live/balances");
 
 export interface LiveConvertResult {
   configured: boolean;
@@ -105,16 +115,8 @@ export interface LiveConvertResult {
   after: LiveWallet[];
 }
 
-export async function runLiveConvert(amountUsd: number): Promise<LiveConvertResult> {
-  const res = await fetch(`${BASE}/live/convert`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ amountUsd }),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`live convert ${res.status}`);
-  return res.json();
-}
+export const runLiveConvert = (amountUsd: number) =>
+  post<LiveConvertResult>("/live/convert", { amountUsd });
 
 export interface LiveSendResult {
   configured: boolean;
@@ -124,16 +126,8 @@ export interface LiveSendResult {
   after: LiveWallet[];
 }
 
-export async function runLiveSend(amountUsd: number): Promise<LiveSendResult> {
-  const res = await fetch(`${BASE}/live/send`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ amountUsd }),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`live send ${res.status}`);
-  return res.json();
-}
+export const runLiveSend = (amountUsd: number) =>
+  post<LiveSendResult>("/live/send", { amountUsd });
 
 // ── Agentic engine ──
 export interface AgentRoute {
@@ -142,6 +136,13 @@ export interface AgentRoute {
   rate: number;
   sourceMinor: number;
   targetMinor: number;
+}
+
+export interface Payee {
+  name: string;
+  phone?: string;
+  userId?: string;
+  known: boolean;
 }
 
 export interface AgentActResult {
@@ -153,22 +154,12 @@ export interface AgentActResult {
   reply: string;
   serious: boolean;
   route?: AgentRoute | null;
+  payee?: Payee | null;
   needsConfirm: boolean;
 }
 
-export async function agentAct(
-  text: string,
-  sourceCurrency: "USD" | "NGN" = "USD",
-): Promise<AgentActResult> {
-  const res = await fetch(`${BASE}/agent/act`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, sourceCurrency }),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`agent act ${res.status}`);
-  return res.json();
-}
+export const agentAct = (text: string, sourceCurrency: "USD" | "NGN" = "USD") =>
+  post<AgentActResult>("/agent/act", { text, sourceCurrency });
 
 export interface ParsedPayment {
   recipient?: string;
@@ -179,19 +170,8 @@ export interface ParsedPayment {
   note?: string;
 }
 
-export async function parsePaymentImage(
-  image: string,
-  mimeType: string,
-): Promise<ParsedPayment> {
-  const res = await fetch(`${BASE}/agent/parse-image`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image, mimeType }),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`parse image ${res.status}`);
-  return res.json();
-}
+export const parsePaymentImage = (image: string, mimeType: string) =>
+  post<ParsedPayment>("/agent/parse-image", { image, mimeType });
 
 export interface PayResult {
   ok: boolean;
@@ -199,6 +179,7 @@ export interface PayResult {
   receipt?: {
     id: string;
     recipient: string;
+    phone?: string | null;
     amountMinor: number;
     currency: string;
     route?: AgentRoute | null;
@@ -207,22 +188,14 @@ export interface PayResult {
   };
 }
 
-export async function payAgent(input: {
+export const payAgent = (input: {
   recipient: string;
   amountMinor: number;
   currency: "USD" | "NGN";
   sourceCurrency?: "USD" | "NGN";
+  phone?: string;
   note?: string;
-}): Promise<PayResult> {
-  const res = await fetch(`${BASE}/agent/pay`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`pay ${res.status}`);
-  return res.json();
-}
+}) => post<PayResult>("/agent/pay", input);
 
 export interface Rule {
   id: string;
@@ -235,19 +208,6 @@ export interface Rule {
   enabled: boolean;
 }
 
-export async function getRules(): Promise<Rule[]> {
-  const res = await fetch(`${BASE}/rules`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`rules ${res.status}`);
-  return res.json();
-}
-
-export async function updateRule(id: string, patch: Partial<Rule>): Promise<Rule> {
-  const res = await fetch(`${BASE}/rules/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`updateRule ${res.status}`);
-  return res.json();
-}
+export const getRules = () => get<Rule[]>("/rules");
+export const updateRule = (id: string, patch: Partial<Rule>) =>
+  put<Rule>(`/rules/${id}`, patch);

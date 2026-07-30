@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSession, isOnboarded, isSignedIn, type Autonomy } from "@/lib/session";
+import { warmup } from "@/lib/api";
 import { AgentHome } from "@/components/AgentHome";
 import { ManualHome } from "@/components/ManualHome";
 import { HybridHome } from "@/components/HybridHome";
@@ -23,6 +24,9 @@ export default function Home() {
     }
     setAutonomy(getSession()?.autonomy ?? "automatic");
     setReady(true);
+    warmup();
+    const id = setInterval(warmup, 4 * 60 * 1000);
+    return () => clearInterval(id);
   }, [router]);
 
   if (!ready) return null;

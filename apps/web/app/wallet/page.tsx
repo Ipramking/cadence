@@ -6,23 +6,8 @@ import Link from "next/link";
 import { formatMoney } from "@/lib/format";
 import { Rings } from "@/components/Rings";
 import { Sparkle } from "@/components/Sparkle";
-import {
-  getLiveBalances,
-  getOverview,
-  getWallets,
-  type LiveWallet,
-  type OverviewWallet,
-} from "@/lib/api";
+import { getLiveBalances, getOverview, warmup, type LiveWallet } from "@/lib/api";
 import { getReceipts, isSignedIn, type Receipt } from "@/lib/session";
-
-const PURPOSE: Record<string, string> = {
-  main: "Main balance",
-  salary: "Salary",
-  goal: "Savings goal",
-  family: "Family support",
-  hedge: "USD hedge",
-  reserve: "Reserve",
-};
 
 function short(a?: string) {
   return a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "";
@@ -30,30 +15,32 @@ function short(a?: string) {
 
 export default function WalletPage() {
   const router = useRouter();
-  const [wallets, setWallets] = useState<OverviewWallet[]>([]);
   const [live, setLive] = useState<LiveWallet[]>([]);
   const [rate, setRate] = useState<number | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!isSignedIn()) {
       router.replace("/auth");
       return;
     }
-    getWallets().then(setWallets).catch(() => setWallets([]));
-    getLiveBalances().then((r) => setLive(r.wallets)).catch(() => setLive([]));
-    getOverview().then((o) => setRate(o.rate.rate)).catch(() => setRate(null));
+    warmup();
     setReceipts(getReceipts());
+    Promise.allSettled([
+      getLiveBalances().then((r) => setLive(r.wallets)),
+      getOverview().then((o) => setRate(o.rate.rate)),
+    ]).finally(() => setLoading(false));
   }, [router]);
 
-  // Total, expressed in naira using the live rate.
+  // Total across the real on-chain wallets, valued in naira.
   const totalNgn = useMemo(() => {
-    if (!rate) return null;
-    return wallets.reduce((sum, w) => {
-      const minor = w.balance.minor;
-      return sum + (w.balance.currency === "USD" ? minor * rate : minor);
-    }, 0);
-  }, [wallets, rate]);
+    if (rate === null) return null;
+    return live.reduce(
+      (sum, w) => sum + (w.currency === "USD" ? w.balance.minor * rate : w.balance.minor),
+      0,
+    );
+  }, [live, rate]);
 
   return (
     <main className="mx-auto max-w-2xl px-5 py-6">
@@ -69,57 +56,52 @@ export default function WalletPage() {
         </div>
         <span className="label">Total balance</span>
         <div className="stat mt-2 text-4xl">
-          {totalNgn !== null ? formatMoney(Math.round(totalNgn), "NGN") : "—"}
+          {loading ? (
+            <span className="inline-block h-9 w-44 animate-pulse rounded-lg bg-surface2" />
+          ) : totalNgn !== null ? (
+            formatMoney(Math.round(totalNgn), "NGN")
+          ) : (
+            "—"
+          )}
         </div>
-        <p className="mt-1 text-xs text-muted">Across all wallets, valued at ₦{rate ?? "…"}/$.</p>
+        <p className="mt-1 text-xs text-muted">
+          {loading ? "Reading balances from BMONI…" : `Real on-chain balance, valued at ₦${rate ?? "…"}/$.`}
+        </p>
       </section>
 
-      {/* Wallets */}
-      <section className="mt-6">
-        <h2 className="label mb-3">Your money</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {wallets.map((w) => (
-            <div key={w.id} className="card">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">{PURPOSE[w.purpose] ?? w.name}</span>
-                <span className="text-xs text-muted">{w.balance.currency}</span>
-              </div>
-              <div className="stat mt-1.5 text-xl">
-                {formatMoney(w.balance.minor, w.balance.currency as "USD" | "NGN")}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* On-chain */}
+      {/* On-chain wallets */}
       <section className="mt-6">
         <div className="mb-3 flex items-center gap-2">
           <h2 className="label">On-chain wallets</h2>
           <Sparkle size={12} />
         </div>
         <div className="space-y-3">
-          {live.length === 0 && <p className="text-sm text-muted">Connecting to BMONI…</p>}
-          {live.map((w) => (
-            <div key={w.id} className="card flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">
-                  {w.currency === "USD" ? "USD wallet · USDB" : "Naira wallet · CNGN"}
-                </p>
-                {w.address && <span className="code mt-1 inline-block">{short(w.address)}</span>}
+          {loading && [0, 1].map((i) => <div key={i} className="card h-20 animate-pulse bg-surface2/40" />)}
+          {!loading &&
+            live.map((w) => (
+              <div key={w.id} className="card flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">
+                    {w.currency === "USD" ? "Dollar wallet · USDB" : "Naira wallet · CNGN"}
+                  </p>
+                  {w.address && <span className="code mt-1 inline-block">{short(w.address)}</span>}
+                </div>
+                <span className="stat text-lg">
+                  {formatMoney(w.balance.minor, w.currency as "USD" | "NGN")}
+                </span>
               </div>
-              <span className="stat text-lg">
-                {formatMoney(w.balance.minor, w.currency as "USD" | "NGN")}
-              </span>
-            </div>
-          ))}
-          <p className="text-xs text-muted">
-            Managed smart wallets created on BMONI with cryptographic proof of ownership.
-          </p>
+            ))}
+          {!loading && live.length === 0 && (
+            <p className="text-sm text-muted">Couldn&apos;t reach BMONI — pull to refresh.</p>
+          )}
+          <div className="callout text-xs">
+            Managed smart wallets created on <span className="code">BMONI</span> with cryptographic
+            proof of ownership. Balances are live and settle as funds arrive.
+          </div>
         </div>
       </section>
 
-      {/* Receipts */}
+      {/* Payments */}
       {receipts.length > 0 && (
         <section className="mt-6 mb-10">
           <h2 className="label mb-3">Payments</h2>
@@ -130,9 +112,7 @@ export default function WalletPage() {
                   <p className="text-sm font-medium">{r.recipient}</p>
                   <p className="text-xs text-muted">{new Date(r.at).toLocaleString()}</p>
                 </div>
-                <span className="stat text-base">
-                  {formatMoney(r.amountMinor, r.currency as "USD" | "NGN")}
-                </span>
+                <span className="code">{formatMoney(r.amountMinor, r.currency as "USD" | "NGN")}</span>
               </div>
             ))}
           </div>
