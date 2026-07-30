@@ -53,8 +53,8 @@ export function AgentHome({ autonomy = "automatic" }: { autonomy?: string }) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [showReceipts, setShowReceipts] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const started = msgs.some((m) => m.role === "user");
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -64,8 +64,8 @@ export function AgentHome({ autonomy = "automatic" }: { autonomy?: string }) {
     setMsgs((x) => [...x, { id: uid(), ...m }]);
   }
 
-  async function send() {
-    const text = input.trim();
+  async function send(override?: string) {
+    const text = (override ?? input).trim();
     if (!text || busy) return;
     setInput("");
     push({ role: "user", kind: "text", text });
@@ -177,58 +177,121 @@ export function AgentHome({ autonomy = "automatic" }: { autonomy?: string }) {
         </div>
       </header>
 
-      {/* chat */}
-      <div className="relative flex-1 space-y-3 overflow-y-auto py-4">
-        {msgs.map((m) =>
-          m.kind === "text" ? (
-            <Bubble key={m.id} role={m.role}>
-              {m.text}
-            </Bubble>
-          ) : m.kind === "confirm" && m.pending ? (
-            <ConfirmCard key={m.id} p={m.pending} done={m.done} onConfirm={(secret) => confirmPay(m.id, m.pending!, secret)} />
-          ) : m.kind === "receipt" && m.receipt ? (
-            <ReceiptCard key={m.id} r={m.receipt} />
-          ) : null,
-        )}
-        <div ref={endRef} />
-      </div>
-
-      {/* input */}
-      <div className="relative border-t border-border py-3">
-        <div className="flex items-center gap-2">
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
-          />
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border text-muted transition hover:text-primary2"
-            aria-label="Attach a bill"
-          >
-            📎
-          </button>
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
-            disabled={busy}
-            placeholder="Tell Cadence what to do…"
-            className="h-11 flex-1 rounded-full border border-border bg-surface px-4 text-sm outline-none placeholder:text-muted focus:border-primary disabled:opacity-60"
-          />
-          <button
-            onClick={send}
-            disabled={busy || !input.trim()}
-            className="btn-primary h-11 px-5"
-          >
-            {busy ? "…" : "Send"}
-          </button>
+      {/* body */}
+      {!started ? (
+        <div className="relative flex flex-1 flex-col items-center justify-center gap-7 px-2 pb-10 text-center">
+          <div className="float">
+            <Rings size={92} progress={0.66} spin />
+          </div>
+          <div className="rise">
+            <h1 className="text-3xl font-bold tracking-tight">
+              Hi {session?.name ?? "there"}.{" "}
+              <span className="display text-primary2">What are we doing?</span>
+            </h1>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
+              Pay anyone in any currency, check a balance, or scan a bill — just tell me.
+            </p>
+          </div>
+          <div className="rise flex flex-wrap justify-center gap-2">
+            {SUGGESTIONS.map((s) => (
+              <button
+                key={s.label}
+                onClick={() => send(s.text)}
+                className="chip transition hover:border-primary hover:text-primary2"
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <div className="rise w-full max-w-xl">
+            <Composer input={input} setInput={setInput} onSend={send} onAttach={onFile} busy={busy} floating />
+          </div>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="relative flex-1 space-y-3 overflow-y-auto py-4">
+            {msgs.map((m) =>
+              m.kind === "text" ? (
+                <Bubble key={m.id} role={m.role}>
+                  {m.text}
+                </Bubble>
+              ) : m.kind === "confirm" && m.pending ? (
+                <ConfirmCard key={m.id} p={m.pending} done={m.done} onConfirm={(secret) => confirmPay(m.id, m.pending!, secret)} />
+              ) : m.kind === "receipt" && m.receipt ? (
+                <ReceiptCard key={m.id} r={m.receipt} />
+              ) : null,
+            )}
+            <div ref={endRef} />
+          </div>
+          <div className="pb-3">
+            <Composer input={input} setInput={setInput} onSend={send} onAttach={onFile} busy={busy} />
+          </div>
+        </>
+      )}
 
       {showReceipts && <ReceiptsDrawer onClose={() => setShowReceipts(false)} />}
+    </div>
+  );
+}
+
+const SUGGESTIONS = [
+  { label: "What's my balance", text: "what's my balance" },
+  { label: "Pay ₦20,000 to Musa", text: "pay ₦20,000 to Musa" },
+  { label: "Convert $100 to naira", text: "convert $100 to naira" },
+  { label: "Send ₦50,000 home", text: "send ₦50,000 home" },
+];
+
+function Composer({
+  input,
+  setInput,
+  onSend,
+  onAttach,
+  busy,
+  floating,
+}: {
+  input: string;
+  setInput: (v: string) => void;
+  onSend: () => void;
+  onAttach: (f: File) => void;
+  busy: boolean;
+  floating?: boolean;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  return (
+    <div
+      className={`flex items-center gap-2 ${
+        floating
+          ? "rounded-full border border-primary/40 bg-surface p-1.5 shadow-[0_12px_60px_-14px_rgba(91,91,246,0.65)]"
+          : ""
+      }`}
+    >
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => e.target.files?.[0] && onAttach(e.target.files[0])}
+      />
+      <button
+        onClick={() => fileRef.current?.click()}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border text-muted transition hover:text-primary2"
+        aria-label="Attach a bill"
+      >
+        📎
+      </button>
+      <input
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && onSend()}
+        disabled={busy}
+        placeholder="Tell Cadence what to do…"
+        className={`h-11 flex-1 rounded-full px-4 text-sm outline-none placeholder:text-muted disabled:opacity-60 ${
+          floating ? "bg-transparent" : "border border-border bg-surface focus:border-primary"
+        }`}
+      />
+      <button onClick={() => onSend()} disabled={busy || !input.trim()} className="btn-primary h-11 px-5">
+        {busy ? "…" : "Send"}
+      </button>
     </div>
   );
 }
