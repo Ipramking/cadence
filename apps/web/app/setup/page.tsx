@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { AllocationFlow, type FlowItem } from "@/components/AllocationFlow";
 import { getRules, updateRule, type Rule } from "@/lib/api";
 
-const KIND_META: Record<Rule["kind"], { title: string; blurb: string }> = {
-  salary: { title: "Monthly salary", blurb: "Paid to you as a steady wage" },
-  goal: { title: "Savings goal", blurb: "Fills a vault like rent" },
-  family: { title: "Family support", blurb: "Sent home each cycle" },
-  hedge: { title: "USD hedge", blurb: "Held against naira devaluation" },
+const META: Record<Rule["kind"], { title: string; blurb: string; dot: string }> = {
+  salary: { title: "Monthly salary", blurb: "paid to you steadily", dot: "var(--primary)" },
+  goal: { title: "Rent vault", blurb: "goal · due the 30th", dot: "var(--success)" },
+  family: { title: "Send home", blurb: "family support", dot: "var(--warn)" },
+  hedge: { title: "USD hedge", blurb: "against the naira", dot: "var(--primary-2)" },
 };
 
 export default function Setup() {
@@ -26,12 +27,22 @@ export default function Setup() {
       .catch(() => setRules([]));
   }, []);
 
-  const total = useMemo(
-    () => Object.values(pct).reduce((a, b) => a + b, 0),
-    [pct],
-  );
+  const total = useMemo(() => Object.values(pct).reduce((a, b) => a + b, 0), [pct]);
   const remainder = Math.max(0, 100 - total);
   const over = total > 100;
+
+  const flowItems: FlowItem[] = useMemo(
+    () =>
+      (rules ?? [])
+        .filter((r) => (pct[r.id] ?? 0) > 0)
+        .map((r) => ({
+          pct: pct[r.id] ?? 0,
+          label: META[r.kind].title,
+          sub: META[r.kind].blurb,
+          dot: META[r.kind].dot,
+        })),
+    [rules, pct],
+  );
 
   async function save() {
     if (!rules || over || saving) return;
@@ -39,90 +50,85 @@ export default function Setup() {
     setSaved(false);
     try {
       await Promise.all(
-        rules
-          .filter((r) => r.percentage !== pct[r.id])
-          .map((r) => updateRule(r.id, { percentage: pct[r.id] })),
+        rules.filter((r) => r.percentage !== pct[r.id]).map((r) => updateRule(r.id, { percentage: pct[r.id] })),
       );
       setSaved(true);
     } catch {
-      // leave the UI as-is on failure
+      /* noop */
     }
     setSaving(false);
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-5 py-10">
-      <header className="mb-8">
-        <Link href="/app" className="text-sm text-muted hover:text-ink">
-          ← Back to dashboard
-        </Link>
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight">Your money plan</h1>
-        <p className="mt-1 text-sm text-muted">
-          Decide how each incoming dollar is split. Anything left over stays in your main balance.
-        </p>
+    <main className="mx-auto max-w-2xl px-5 py-8">
+      <header className="mb-6 flex items-center justify-between">
+        <Link href="/app" className="text-sm text-muted transition hover:text-ink">← Home</Link>
+        {saved && <span className="text-xs text-success">Saved</span>}
       </header>
 
+      <h1 className="text-3xl font-bold tracking-tight">
+        Your money <span className="display text-primary2">plan</span>
+      </h1>
+      <p className="mt-2 text-sm text-muted">
+        How each incoming dollar is split. Whatever&apos;s left stays in your main balance.
+      </p>
+
       {rules === null ? (
-        <p className="text-sm text-muted">Loading…</p>
+        <p className="mt-8 text-sm text-muted">Loading…</p>
       ) : (
         <>
-          <div className="space-y-3">
-            {rules.map((r) => {
-              const meta = KIND_META[r.kind];
-              return (
-                <div key={r.id} className="card">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">{meta.title}</p>
-                      <p className="text-xs text-muted">{meta.blurb}</p>
-                    </div>
-                    <span className="stat text-accent">{pct[r.id] ?? 0}%</span>
+          {/* live flow */}
+          {flowItems.length > 0 && (
+            <div className="card mt-6">
+              <AllocationFlow amount="$1" items={flowItems} />
+            </div>
+          )}
+
+          {/* sliders */}
+          <div className="mt-4 space-y-3">
+            {rules.map((r) => (
+              <div key={r.id} className="card">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">{META[r.kind].title}</p>
+                    <p className="text-xs text-muted">{META[r.kind].blurb}</p>
                   </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={pct[r.id] ?? 0}
-                    onChange={(e) => {
-                      setSaved(false);
-                      setPct((p) => ({ ...p, [r.id]: Number(e.target.value) }));
-                    }}
-                    className="mt-3 w-full accent-[var(--accent)]"
-                  />
+                  <span className="stat text-lg text-primary2">{pct[r.id] ?? 0}%</span>
                 </div>
-              );
-            })}
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={pct[r.id] ?? 0}
+                  onChange={(e) => {
+                    setSaved(false);
+                    setPct((p) => ({ ...p, [r.id]: Number(e.target.value) }));
+                  }}
+                  className="mt-3 w-full accent-[var(--primary)]"
+                />
+              </div>
+            ))}
           </div>
 
-          {/* Total */}
+          {/* total */}
           <div className="card mt-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted">Allocated</span>
-              <span className={over ? "text-danger" : "text-ink"}>{total}%</span>
+              <span className={over ? "text-danger" : "text-ink"} style={{ fontVariantNumeric: "tabular-nums" }}>
+                {total}%
+              </span>
             </div>
             <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface2">
-              <div
-                className={`h-full rounded-full ${over ? "bg-danger" : "bg-accent"}`}
-                style={{ width: `${Math.min(100, total)}%` }}
-              />
+              <div className={`h-full rounded-full ${over ? "bg-danger" : "bg-primary"}`} style={{ width: `${Math.min(100, total)}%` }} />
             </div>
             <p className="mt-2 text-xs text-muted">
-              {over
-                ? "Over 100% — reduce a slice to save."
-                : `${remainder}% stays in your main balance.`}
+              {over ? "Over 100% — trim a slice to save." : `${remainder}% stays in your main balance.`}
             </p>
           </div>
 
-          <div className="mt-5 flex items-center gap-3">
-            <button
-              onClick={save}
-              disabled={over || saving}
-              className="rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-black transition disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save plan"}
-            </button>
-            {saved && <span className="text-sm text-accent">✓ Saved</span>}
-          </div>
+          <button onClick={save} disabled={over || saving} className="btn-primary mt-5 w-full">
+            {saving ? "Saving…" : "Save plan"}
+          </button>
         </>
       )}
     </main>

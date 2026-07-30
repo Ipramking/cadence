@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSession, isSignedIn, type Autonomy } from "@/lib/session";
 import { AgentHome } from "@/components/AgentHome";
+import { ManualHome } from "@/components/ManualHome";
+import { HybridHome } from "@/components/HybridHome";
 
 export default function Home() {
   const router = useRouter();
@@ -21,7 +23,16 @@ export default function Home() {
 
   if (!ready) return null;
 
-  // Automatic is the hero; Hybrid shares the agent home for now.
-  // Manual (bank-style) home lands in the next pass.
-  return <AgentHome autonomy={autonomy} />;
+  if (autonomy === "manual") return <ManualHome />;
+  if (autonomy === "hybrid")
+    return (
+      <div className="h-[100dvh]">
+        <HybridHome />
+      </div>
+    );
+  return (
+    <div className="h-[100dvh]">
+      <AgentHome autonomy="automatic" />
+    </div>
+  );
 }

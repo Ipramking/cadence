@@ -156,7 +156,7 @@ export function AgentHome({ autonomy = "automatic" }: { autonomy?: string }) {
   }
 
   return (
-    <div className="relative mx-auto flex h-[100dvh] max-w-2xl flex-col px-4">
+    <div className="relative mx-auto flex h-full max-w-2xl flex-col px-4">
       <div className="pointer-events-none absolute -right-24 -top-16 opacity-40">
         <Rings size={220} progress={0.6} spin />
       </div>
