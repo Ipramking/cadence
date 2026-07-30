@@ -74,8 +74,10 @@ export async function provisionSandboxUser(details?: {
   const ownerPrivateKey = generatePrivateKey();
   const account = privateKeyToAccount(ownerPrivateKey);
 
-  const cngn = await createWallet(bmoniUserId, "CNGN", account);
-  const usdb = await createWallet(bmoniUserId, "USDB", account);
+  const [cngn, usdb] = await Promise.all([
+    createWallet(bmoniUserId, "CNGN", account),
+    createWallet(bmoniUserId, "USDB", account),
+  ]);
 
   // Kick off the Nigeria rail (best effort — KYC completion is separate).
   try {

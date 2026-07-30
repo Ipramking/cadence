@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkle } from "@/components/Sparkle";
-import { getRules, onboardUser, updateRule, type Rule } from "@/lib/api";
+import { getRules, onboardUser, savePrefs, updateRule, type Rule } from "@/lib/api";
 import {
   cacheUser,
   completeOnboarding,
@@ -135,9 +135,9 @@ export default function Onboarding() {
       pin: pin.trim() || undefined,
       safeWord: safeWord.trim() || undefined,
     });
-    // Persist prefs server-side (won't re-provision — wallets already exist).
+    // Persist prefs server-side (prefs-only endpoint — never re-provisions).
     try {
-      const r = await onboardUser({
+      const r = await savePrefs({
         name: name.trim() || undefined,
         phone: phone.trim() || undefined,
         autonomy,
@@ -147,7 +147,7 @@ export default function Onboarding() {
       });
       cacheUser(r.user);
     } catch {
-      /* prefs are best-effort — wallets already exist, so still proceed */
+      /* prefs are best-effort — still proceed */
     }
     if (planChoice === "self" && rules) {
       try {

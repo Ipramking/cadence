@@ -116,10 +116,20 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const name = prefs.name?.trim() || user.name || undefined;
     const phone = prefs.phone?.trim() || user.phone || undefined;
 
+    // Provision the user's own BMONI wallets — best effort, time-capped. If it
+    // fails or is slow, we still onboard them; money endpoints fall back to the
+    // shared funded demo account, so the experience is never blocked.
     let bmoniFields: Record<string, unknown> = {};
+    let provisioned = !!user.bmoniUserId;
     if (!user.bmoniUserId) {
       try {
-        const prov = await provisionSandboxUser({ name, email: user.email, phone });
+        const timeout = new Promise<never>((_, rej) =>
+          setTimeout(() => rej(new Error("provision timeout")), 18000),
+        );
+        const prov = await Promise.race([
+          provisionSandboxUser({ name, email: user.email, phone }),
+          timeout,
+        ]);
         const cngn = prov.wallets.find((w) => w.currency === "CNGN");
         const usdb = prov.wallets.find((w) => w.currency === "USDB");
         bmoniFields = {
@@ -130,8 +140,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           cngnAddress: cngn?.address,
           usdbAddress: usdb?.address,
         };
-      } catch {
-        return reply.status(502).send({ error: "Couldn't create your wallet just now — please try again." });
+        provisioned = true;
+      } catch (e) {
+        req.log.error({ err: e }, "BMONI provisioning failed — onboarding on demo account");
       }
     }
 
@@ -145,6 +156,28 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         planEnabled: prefs.planEnabled ?? user.planEnabled,
         pinHash: prefs.pin ? hashSecret(prefs.pin) : user.pinHash,
         safeWordHash: prefs.safeWord ? hashSecret(prefs.safeWord) : user.safeWordHash,
+        onboarded: true,
+      },
+    });
+    return { user: sanitize(updated), provisioned };
+  });
+
+  // Update preferences only — never provisions (used after onboarding + settings).
+  app.put("/auth/prefs", async (req, reply) => {
+    const uid = requireUserId(req);
+    const user = uid ? await prisma.user.findUnique({ where: { id: uid } }) : null;
+    if (!user) return reply.status(401).send({ error: "Not signed in" });
+    const parsed = onboardSchema.safeParse(req.body ?? {});
+    const p = parsed.success ? parsed.data : {};
+    const updated = await prisma.user.update({
+      where: { id: uid! },
+      data: {
+        name: p.name?.trim() || user.name,
+        phone: p.phone?.trim() || user.phone,
+        autonomy: p.autonomy ?? user.autonomy,
+        planEnabled: p.planEnabled ?? user.planEnabled,
+        pinHash: p.pin ? hashSecret(p.pin) : user.pinHash,
+        safeWordHash: p.safeWord ? hashSecret(p.safeWord) : user.safeWordHash,
         onboarded: true,
       },
     });

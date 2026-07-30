@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { freezeAgent, getPolicy, updatePolicy, onboardUser, type Policy } from "@/lib/api";
+import { freezeAgent, getPolicy, updatePolicy, savePrefs, type Policy } from "@/lib/api";
 import {
   getSession,
   isSignedIn,
@@ -59,7 +59,7 @@ export default function Settings() {
     setTimeout(() => setSaved(false), 1200);
     // Persist server-side prefs (best-effort — local mirror already updated).
     if (p.autonomy !== undefined || p.planEnabled !== undefined) {
-      onboardUser({ autonomy: next.autonomy, planEnabled: next.planEnabled }).catch(() => {});
+      savePrefs({ autonomy: next.autonomy, planEnabled: next.planEnabled }).catch(() => {});
     }
   }
 

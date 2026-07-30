@@ -310,14 +310,21 @@ export const login = (body: { email: string; password: string }) =>
 
 export const authMe = () => get<{ user: AuthUser }>("/auth/me");
 
-export const onboardUser = (body: {
+export interface PrefsBody {
   name?: string;
   phone?: string;
   autonomy?: "manual" | "hybrid" | "automatic";
   planEnabled?: boolean;
   pin?: string;
   safeWord?: string;
-}) => post<{ user: AuthUser }>("/auth/onboard", body);
+}
+
+// Provisions the user's BMONI wallets (best-effort) + saves prefs. Runs once, at onboarding.
+export const onboardUser = (body: PrefsBody) =>
+  post<{ user: AuthUser; provisioned?: boolean }>("/auth/onboard", body);
+
+// Saves preferences only — never provisions. Used after onboarding + in settings.
+export const savePrefs = (body: PrefsBody) => put<{ user: AuthUser }>("/auth/prefs", body);
 
 export const getServerReceipts = () => get<{ receipts: ExecReceipt[] }>("/receipts");
 
