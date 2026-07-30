@@ -34,3 +34,5 @@ services:
         sync: false
       - key: BMONI_OWNER_KEY
         sync: false
+      - key: APP_SECRET
+        sync: false
