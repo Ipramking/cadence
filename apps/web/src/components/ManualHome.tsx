@@ -51,6 +51,10 @@ export function ManualHome() {
           <button onClick={() => setSend(true)} className="btn-primary flex-1">Send</button>
           <Link href="/setup" className="btn-ghost flex-1">Plan</Link>
         </div>
+        <div className="callout mt-4 text-xs">
+          Pay in <span className="code">any currency</span> — Cadence converts from whatever you
+          hold at the live BMONI rate.
+        </div>
       </section>
 
       {/* Wallets */}
@@ -89,7 +93,7 @@ export function ManualHome() {
                     {risk}
                   </span>
                 )}
-                <span className="text-sm" style={{ fontVariantNumeric: "tabular-nums" }}>
+                <span className="code">
                   {t.type === "inflow" ? "+" : ""}{sym}{(t.amount.minor / 100).toLocaleString()}
                 </span>
               </div>

@@ -72,6 +72,10 @@ export default function Setup() {
       <p className="mt-2 text-sm text-muted">
         How each incoming dollar is split. Whatever&apos;s left stays in your main balance.
       </p>
+      <div className="callout mt-4 text-xs">
+        Cadence runs this the moment a payment lands — converting and routing each slice
+        through <span className="code">BMONI</span> automatically.
+      </div>
 
       {rules === null ? (
         <p className="mt-8 text-sm text-muted">Loading…</p>
@@ -93,7 +97,7 @@ export default function Setup() {
                     <p className="text-sm font-medium">{META[r.kind].title}</p>
                     <p className="text-xs text-muted">{META[r.kind].blurb}</p>
                   </div>
-                  <span className="stat text-lg text-primary2">{pct[r.id] ?? 0}%</span>
+                  <span className="code text-sm">{pct[r.id] ?? 0}%</span>
                 </div>
                 <input
                   type="range"
@@ -114,16 +118,20 @@ export default function Setup() {
           <div className="card mt-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted">Allocated</span>
-              <span className={over ? "text-danger" : "text-ink"} style={{ fontVariantNumeric: "tabular-nums" }}>
-                {total}%
-              </span>
+              <span className={`code ${over ? "text-danger" : ""}`}>{total}%</span>
             </div>
             <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface2">
               <div className={`h-full rounded-full ${over ? "bg-danger" : "bg-primary"}`} style={{ width: `${Math.min(100, total)}%` }} />
             </div>
-            <p className="mt-2 text-xs text-muted">
-              {over ? "Over 100% — trim a slice to save." : `${remainder}% stays in your main balance.`}
-            </p>
+            <div className="callout mt-3 text-xs">
+              {over ? (
+                "Over 100% — trim a slice to save."
+              ) : (
+                <>
+                  <span className="code">{remainder}%</span> stays spendable in your main balance.
+                </>
+              )}
+            </div>
           </div>
 
           <button onClick={save} disabled={over || saving} className="btn-primary mt-5 w-full">
