@@ -33,10 +33,24 @@ async function req<T>(path: string, init: RequestInit = {}, tries = 5): Promise<
         signal: ctrl.signal,
       });
       clearTimeout(timer);
+      // A rejected token (e.g. signed before a secret rotation) shouldn't trap
+      // the user: drop it and send them to sign in again. Login/signup handle
+      // their own 401s (wrong password), so leave those to the form.
+      if (res.status === 401 && !path.startsWith("/auth/login") && !path.startsWith("/auth/signup")) {
+        clearToken();
+        if (typeof window !== "undefined" && !window.location.pathname.startsWith("/auth")) {
+          window.location.href = "/auth";
+        }
+        throw new Error(`${path} 401`);
+      }
+      // Client errors (4xx) won't be fixed by retrying — fail fast.
+      if (res.status >= 400 && res.status < 500) throw new Error(`${path} ${res.status}`);
       if (!res.ok) throw new Error(`${path} ${res.status}`);
       return (await res.json()) as T;
     } catch (e) {
       lastErr = e;
+      const msg = e instanceof Error ? e.message : "";
+      if (/\b4\d\d$/.test(msg)) throw e; // client error — do not retry
       if (i < tries - 1) await new Promise((r) => setTimeout(r, 1200 * (i + 1)));
     }
   }
