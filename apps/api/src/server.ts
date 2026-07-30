@@ -6,6 +6,7 @@ import { overviewRoutes } from "./routes/overview.js";
 import { pipelineRoutes } from "./routes/pipeline.js";
 import { agentRoutes } from "./routes/agent.js";
 import { liveRoutes } from "./routes/live.js";
+import { authRoutes } from "./routes/auth.js";
 
 import { walletRoutes } from "./routes/wallets.js";
 import { transactionRoutes } from "./routes/transactions.js";
@@ -20,6 +21,7 @@ const app = Fastify({ logger: true });
 await app.register(cors, { origin: true });
 
 app.get("/health", async () => ({ status: "ok" }));
+await app.register(authRoutes);
 await app.register(overviewRoutes);
 await app.register(pipelineRoutes);
 await app.register(agentRoutes);

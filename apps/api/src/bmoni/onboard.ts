@@ -13,15 +13,19 @@ export interface ProvisionedUser {
 
 type WalletCurrency = "CNGN" | "USDB";
 
-async function createUser(): Promise<string> {
-  const n = Math.floor(Math.random() * 1_000_000);
+async function createUser(details: {
+  firstName: string;
+  lastName?: string;
+  email: string;
+  phone: string;
+}): Promise<string> {
   const res = await bmoniFetch<{ user: { bmoniUserId: string } }>("/v1/users", {
     method: "POST",
     body: {
-      firstName: "Ada",
-      lastName: "Freelance",
-      email: `ada.dev.${n}@example.com`,
-      phoneNumber: `+23480${String(10_000_000 + (n % 90_000_000))}`,
+      firstName: details.firstName,
+      lastName: details.lastName ?? "",
+      email: details.email,
+      phoneNumber: details.phone,
     },
   });
   return res.user.bmoniUserId;
@@ -57,8 +61,16 @@ async function createWallet(
  * Nigeria onboarding flow. Returns the identifiers to persist; the app then
  * runs with BMONI_USER_ID pointing at this user.
  */
-export async function provisionSandboxUser(): Promise<ProvisionedUser> {
-  const bmoniUserId = await createUser();
+export async function provisionSandboxUser(details?: {
+  name?: string;
+  email?: string;
+  phone?: string;
+}): Promise<ProvisionedUser> {
+  const n = Math.floor(Math.random() * 1_000_000);
+  const firstName = (details?.name ?? "Cadence").trim().split(" ")[0] || "Cadence";
+  const email = details?.email ?? `user.${n}@cadence.app`;
+  const phone = details?.phone?.trim() || `+23480${String(10_000_000 + (n % 90_000_000))}`;
+  const bmoniUserId = await createUser({ firstName, email, phone });
   const ownerPrivateKey = generatePrivateKey();
   const account = privateKeyToAccount(ownerPrivateKey);
 

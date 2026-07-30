@@ -7,6 +7,42 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  phone        String?
+  name         String?
+  passwordHash String
+  // BMONI account provisioned for this user
+  bmoniUserId  String?
+  ownerKeyEnc  String? // AES-GCM encrypted owner private key
+  cngnWalletId String?
+  usdbWalletId String?
+  cngnAddress  String?
+  usdbAddress  String?
+  // preferences
+  autonomy     String    @default("automatic")
+  pinHash      String?
+  safeWordHash String?
+  planEnabled  Boolean   @default(false)
+  onboarded    Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  receipts     Receipt[]
+}
+
+model Receipt {
+  id          String   @id @default(uuid())
+  userId      String
+  reference   String
+  txType      String
+  recipient   String
+  amountMinor Int
+  currency    String
+  metadata    String?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 model Wallet {
   id               String        @id @default(uuid())
   name             String
