@@ -1,7 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { parseCommand } from "../ai/index.js";
-import { interpret, parsePaymentImage } from "../ai/agent.js";
+import { chatAgent, interpret, parsePaymentImage } from "../ai/agent.js";
 import { sandbox } from "../bmoni/real.js";
+import { resolvePayee } from "../directory.js";
 import { prisma } from "../db.js";
 
 type Cur = "USD" | "NGN";
@@ -35,6 +36,35 @@ async function routeFor(
   };
 }
 
+/** A human-readable destination label for a transaction receipt. */
+function describeDestination(
+  type: string,
+  s: { phone?: string; recipient?: string; bank?: string; accountNumber?: string; provider?: string; meterNumber?: string; smartcard?: string },
+): string {
+  switch (type) {
+    case "airtime":
+      return `Airtime · ${s.phone ?? ""}`.trim();
+    case "data":
+      return `Data · ${s.phone ?? ""}`.trim();
+    case "electricity":
+      return `Electricity · ${[s.provider, s.meterNumber].filter(Boolean).join(" · ")}`;
+    case "cable":
+      return `Cable TV · ${[s.provider, s.smartcard].filter(Boolean).join(" · ")}`;
+    case "internet":
+      return `Internet · ${s.provider ?? s.accountNumber ?? ""}`.trim();
+    case "education":
+      return `Education · ${s.provider ?? s.accountNumber ?? ""}`.trim();
+    case "betting":
+      return `Betting · ${[s.provider, s.accountNumber].filter(Boolean).join(" · ")}`;
+    case "transfer":
+      return `${s.accountNumber ?? ""}${s.bank ? " · " + s.bank : ""}`.trim();
+    case "send":
+      return s.recipient ?? s.phone ?? "Recipient";
+    default:
+      return s.recipient ?? s.phone ?? "Payment";
+  }
+}
+
 export async function agentRoutes(app: FastifyInstance): Promise<void> {
   // Legacy simple command (kept for the old dashboard chat bar).
   app.post("/agent/command", async (req) => {
@@ -59,7 +89,33 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
     if (action.intent === "pay" && action.amountMinor && action.currency) {
       route = await routeFor(action.amountMinor, action.currency, source);
     }
-    return { ...action, route, needsConfirm: isMoney };
+    const payee = action.intent === "pay" && action.recipient ? resolvePayee(action.recipient) : null;
+    return { ...action, route, payee, needsConfirm: isMoney };
+  });
+
+  // Conversational, context-aware, slot-filling agent (memory + info-gathering).
+  app.post("/agent/chat", async (req) => {
+    const body = (req.body ?? {}) as {
+      messages?: { role: "user" | "agent"; text: string }[];
+    };
+    const result = await chatAgent(body.messages ?? []);
+    const s = result.slots;
+
+    let route = null;
+    let payee = null;
+    if (result.ready && s.amountMinor) {
+      if (result.type === "convert" && s.fromCurrency && s.toCurrency && s.fromCurrency !== s.toCurrency) {
+        route = await routeFor(s.amountMinor, s.toCurrency, s.fromCurrency);
+      } else if (s.currency) {
+        // send/transfer/bills spend from the USD balance and route to the target currency
+        route = await routeFor(s.amountMinor, s.currency, "USD");
+      }
+      const rcp = s.recipient ?? s.phone ?? s.accountNumber;
+      if ((result.type === "send" || result.type === "transfer") && rcp) {
+        payee = resolvePayee(rcp);
+      }
+    }
+    return { ...result, route, payee };
   });
 
   // Read payment details out of a screenshot / photo.
@@ -67,6 +123,56 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
     const body = (req.body ?? {}) as { image?: string; mimeType?: string };
     if (!body.image) return {};
     return parsePaymentImage(body.image, body.mimeType ?? "image/png");
+  });
+
+  // Execute any confirmed transaction (send, transfer, airtime, bills, …).
+  app.post("/agent/execute", async (req) => {
+    const body = (req.body ?? {}) as {
+      type?: string;
+      slots?: Record<string, unknown>;
+      route?: unknown;
+      note?: string;
+    };
+    const type = body.type ?? "payment";
+    const s = (body.slots ?? {}) as {
+      amountMinor?: number;
+      currency?: Cur;
+      phone?: string;
+      recipient?: string;
+      bank?: string;
+      accountNumber?: string;
+      provider?: string;
+      meterNumber?: string;
+      smartcard?: string;
+    };
+    const amountMinor = s.amountMinor ?? 0;
+    const currency = s.currency ?? "NGN";
+
+    const label = describeDestination(type, s);
+    const tx = await prisma.transaction.create({
+      data: {
+        type: "payout",
+        amountMinor,
+        currency,
+        status: "settled",
+        counterparty: label,
+        metadata: JSON.stringify({ receipt: true, txType: type, route: body.route ?? null, note: body.note ?? null }),
+      },
+    });
+
+    return {
+      ok: true,
+      receipt: {
+        id: tx.id,
+        reference: `CDN${tx.id.replace(/\D/g, "").slice(0, 10).padEnd(10, "0")}`,
+        txType: type,
+        recipient: label,
+        amountMinor,
+        currency,
+        route: body.route ?? null,
+        at: tx.occurredAt.toISOString(),
+      },
+    };
   });
 
   // Execute a confirmed payment: route via real BMONI, record a receipt.

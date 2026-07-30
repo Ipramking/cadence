@@ -76,6 +76,8 @@ export function rememberRecipient(name: string): void {
 // ── Receipts: persist across sessions (chat itself is ephemeral) ──
 export interface Receipt {
   id: string;
+  reference?: string;
+  txType?: string;
   recipient: string;
   amountMinor: number;
   currency: string;

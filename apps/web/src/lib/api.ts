@@ -161,6 +161,53 @@ export interface AgentActResult {
 export const agentAct = (text: string, sourceCurrency: "USD" | "NGN" = "USD") =>
   post<AgentActResult>("/agent/act", { text, sourceCurrency });
 
+export interface ChatSlots {
+  amountMinor?: number;
+  currency?: "USD" | "NGN";
+  phone?: string;
+  recipient?: string;
+  bank?: string;
+  accountNumber?: string;
+  provider?: string;
+  meterNumber?: string;
+  smartcard?: string;
+  plan?: string;
+  fromCurrency?: "USD" | "NGN";
+  toCurrency?: "USD" | "NGN";
+  note?: string;
+}
+
+export interface ChatResult {
+  type: string;
+  slots: ChatSlots;
+  missing: string[];
+  ready: boolean;
+  reply: string;
+  route?: AgentRoute | null;
+  payee?: Payee | null;
+}
+
+export const agentChat = (messages: { role: "user" | "agent"; text: string }[]) =>
+  post<ChatResult>("/agent/chat", { messages });
+
+export interface ExecReceipt {
+  id: string;
+  reference: string;
+  txType: string;
+  recipient: string;
+  amountMinor: number;
+  currency: string;
+  route?: AgentRoute | null;
+  at: string;
+}
+
+export const executeTx = (input: {
+  type: string;
+  slots: ChatSlots;
+  route?: AgentRoute | null;
+  note?: string;
+}) => post<{ ok: boolean; receipt?: ExecReceipt }>("/agent/execute", input);
+
 export interface ParsedPayment {
   recipient?: string;
   amountMinor?: number;
