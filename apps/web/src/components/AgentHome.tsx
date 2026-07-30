@@ -13,6 +13,7 @@ import {
   type ChatSlots,
   type ExecReceipt,
   type Payee,
+  type Risk,
 } from "@/lib/api";
 import {
   addReceipt,
@@ -69,6 +70,7 @@ interface TxData {
   slots: ChatSlots;
   route?: AgentRoute | null;
   payee?: Payee | null;
+  risk?: Risk;
 }
 
 interface Msg {
@@ -143,7 +145,7 @@ export function AgentHome({ autonomy = "automatic" }: { autonomy?: string }) {
       const r = await agentChat(convo);
       push({ role: "agent", kind: "text", text: r.reply });
       if (r.ready && PAYABLE.has(r.type) && r.slots.amountMinor) {
-        push({ role: "agent", kind: "confirm", tx: { type: r.type, slots: r.slots, route: r.route, payee: r.payee } });
+        push({ role: "agent", kind: "confirm", tx: { type: r.type, slots: r.slots, route: r.route, payee: r.payee, risk: r.risk } });
       }
     } catch {
       push({ role: "agent", kind: "text", text: "I couldn't reach the network just now — try again." });
@@ -170,7 +172,7 @@ export function AgentHome({ autonomy = "automatic" }: { autonomy?: string }) {
         push({
           role: "agent",
           kind: "confirm",
-          tx: { type: "send", slots: { ...parsed }, route: r.route, payee: r.payee },
+          tx: { type: "send", slots: { ...parsed }, route: r.route, payee: r.payee, risk: r.risk },
         });
       } else {
         push({ role: "agent", kind: "text", text: "I couldn't read clear payment details from that image." });
@@ -184,7 +186,15 @@ export function AgentHome({ autonomy = "automatic" }: { autonomy?: string }) {
   async function confirmTx(msgId: string, tx: TxData, secret: string): Promise<string | null> {
     const pin = session?.pin;
     const safe = session?.safeWord?.toLowerCase();
-    if ((pin || safe) && secret.trim().toLowerCase() !== pin && secret.trim().toLowerCase() !== safe) {
+    const val = secret.trim().toLowerCase();
+    if (tx.risk === "high") {
+      // Step-up: an unusual payment must be approved with the safe-word.
+      if (safe) {
+        if (val !== safe) return "This looks unusual — approve it with your safe-word.";
+      } else if (pin && val !== pin) {
+        return "This looks unusual — re-enter your PIN to approve.";
+      }
+    } else if ((pin || safe) && val !== pin && val !== safe) {
       return "That didn't match your PIN or safe-word.";
     }
     setMsgs((x) => x.map((m) => (m.id === msgId ? { ...m, done: true } : m)));
@@ -197,6 +207,15 @@ export function AgentHome({ autonomy = "automatic" }: { autonomy?: string }) {
     executed.current.add(msgId);
     try {
       const res = await executeTx({ type: tx.type, slots: tx.slots, route: tx.route ?? null });
+      if (!res.ok) {
+        setMsgs((x) => x.map((m) => (m.id === msgId ? { ...m, done: true } : m)));
+        push({
+          role: "agent",
+          kind: "text",
+          text: res.error ?? "Your guardrails stopped that payment — nothing was sent.",
+        });
+        return;
+      }
       if (res.ok && res.receipt) {
         const rec = res.receipt;
         const sessionReceipt: Receipt = {
@@ -388,14 +407,20 @@ function ConfirmTx({ tx, done, onConfirm }: { tx: TxData; done?: boolean; onConf
           <span className="code">₦{tx.route.rate}/$</span> via BMONI.
         </div>
       )}
+      {tx.risk === "high" && (
+        <div className="mt-2 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
+          ⚠ Aegis flagged this as unusual. Approve with your <b>safe-word</b> to continue.
+        </div>
+      )}
       {done ? (
         <p className="mt-3 text-sm text-success">✓ Confirmed</p>
       ) : (
         <>
           <input
             value={secret}
+            type="password"
             onChange={(e) => setSecret(e.target.value)}
-            placeholder="PIN or safe-word to confirm"
+            placeholder={tx.risk === "high" ? "Safe-word to approve" : "PIN or safe-word to confirm"}
             className="mt-3 w-full rounded-xl border border-border bg-surface2 px-3 py-2 text-sm outline-none focus:border-primary"
           />
           {err && <p className="mt-1 text-xs text-danger">{err}</p>}

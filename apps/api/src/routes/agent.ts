@@ -3,10 +3,36 @@ import { parseCommand } from "../ai/index.js";
 import { chatAgent, interpret, parsePaymentImage } from "../ai/agent.js";
 import { resolvePayee } from "../directory.js";
 import { resolveBmoni, appUserId } from "../userBmoni.js";
+import { enforceGuardrails } from "./policy.js";
 import type { SandboxBmoniClient } from "../bmoni/sandbox.js";
 import { prisma } from "../db.js";
 
 type Cur = "USD" | "NGN";
+
+/** Approximate the USD-minor value of a payment for guardrail checks. */
+function usdEquivalent(
+  amountMinor: number,
+  currency: Cur,
+  route?: { sourceMinor?: number } | null,
+): number {
+  if (route?.sourceMinor) return route.sourceMinor; // exact USD spent
+  if (currency === "USD") return amountMinor;
+  return Math.round(amountMinor / 1550); // rough NGN-minor → USD-minor
+}
+
+/** Score a payment's risk for step-up auth: unknown recipient, large, or odd hour. */
+function scoreRisk(
+  usdMinor: number,
+  opts: { knownPayee?: boolean; recipient?: string } = {},
+): "low" | "medium" | "high" {
+  let score = 0;
+  if (usdMinor >= 20000) score += 2; // ≥ $200
+  else if (usdMinor >= 5000) score += 1; // ≥ $50
+  if (opts.recipient && opts.knownPayee === false) score += 1; // new recipient
+  const hour = new Date().getHours();
+  if (hour >= 0 && hour < 5) score += 1; // late night
+  return score >= 3 ? "high" : score >= 1 ? "medium" : "low";
+}
 
 /** Best-route conversion when paying a currency you don't hold. */
 async function routeFor(
@@ -118,7 +144,12 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
         payee = resolvePayee(rcp);
       }
     }
-    return { ...result, route, payee };
+    let risk: "low" | "medium" | "high" = "low";
+    if (result.ready && s.amountMinor && s.currency) {
+      const usd = usdEquivalent(s.amountMinor, s.currency, route);
+      risk = scoreRisk(usd, { recipient: s.recipient ?? s.phone, knownPayee: payee?.known });
+    }
+    return { ...result, route, payee, risk };
   });
 
   // Read payment details out of a screenshot / photo.
@@ -150,6 +181,15 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
     };
     const amountMinor = s.amountMinor ?? 0;
     const currency = s.currency ?? "NGN";
+
+    // Trust Architecture — enforce spending guardrails / freeze before moving money.
+    const guard = await enforceGuardrails(
+      req,
+      usdEquivalent(amountMinor, currency, body.route as { sourceMinor?: number } | null),
+    );
+    if (!guard.ok) {
+      return { ok: false, error: guard.message, code: guard.code };
+    }
 
     const label = describeDestination(type, s);
     const reference = `CDN${Date.now().toString().slice(-10)}`;
@@ -208,6 +248,13 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
 
     const ctx = await resolveBmoni(req);
     const route = source !== currency ? await routeFor(amountMinor, currency, source, ctx?.client) : null;
+
+    // Trust Architecture — enforce spending guardrails / freeze before moving money.
+    const guard = await enforceGuardrails(req, usdEquivalent(amountMinor, currency, route));
+    if (!guard.ok) {
+      return { ok: false, error: guard.message, code: guard.code };
+    }
+
     const reference = `CDN${Date.now().toString().slice(-10)}`;
     const uid = appUserId(req);
 

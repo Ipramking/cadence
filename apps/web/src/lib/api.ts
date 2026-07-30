@@ -197,6 +197,8 @@ export interface ChatSlots {
   note?: string;
 }
 
+export type Risk = "low" | "medium" | "high";
+
 export interface ChatResult {
   type: string;
   slots: ChatSlots;
@@ -205,6 +207,7 @@ export interface ChatResult {
   reply: string;
   route?: AgentRoute | null;
   payee?: Payee | null;
+  risk?: Risk;
 }
 
 export const agentChat = (messages: { role: "user" | "agent"; text: string }[]) =>
@@ -226,7 +229,11 @@ export const executeTx = (input: {
   slots: ChatSlots;
   route?: AgentRoute | null;
   note?: string;
-}) => post<{ ok: boolean; receipt?: ExecReceipt }>("/agent/execute", input);
+}) =>
+  post<{ ok: boolean; receipt?: ExecReceipt; error?: string; code?: string }>(
+    "/agent/execute",
+    input,
+  );
 
 export interface ParsedPayment {
   recipient?: string;
@@ -313,3 +320,17 @@ export const onboardUser = (body: {
 }) => post<{ user: AuthUser }>("/auth/onboard", body);
 
 export const getServerReceipts = () => get<{ receipts: ExecReceipt[] }>("/receipts");
+
+// ── Trust Architecture: spending guardrails + freeze ──
+export interface Policy {
+  perPaymentCapMinor: number | null;
+  dailyCapMinor: number | null;
+  allowlistOnly: boolean;
+  agentFrozen: boolean;
+}
+
+export const getPolicy = () => get<{ policy: Policy }>("/policy");
+export const updatePolicy = (patch: Partial<Policy>) =>
+  put<{ policy: Policy }>("/policy", patch);
+export const freezeAgent = (frozen: boolean) =>
+  post<{ policy: Policy }>("/policy/freeze", { frozen });

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { onboardUser } from "@/lib/api";
+import { freezeAgent, getPolicy, updatePolicy, onboardUser, type Policy } from "@/lib/api";
 import {
   getSession,
   isSignedIn,
@@ -23,6 +23,7 @@ export default function Settings() {
   const router = useRouter();
   const [s, setS] = useState<Session | null>(null);
   const [saved, setSaved] = useState(false);
+  const [pol, setPol] = useState<Policy | null>(null);
 
   useEffect(() => {
     if (!isSignedIn()) {
@@ -30,7 +31,26 @@ export default function Settings() {
       return;
     }
     setS(getSession());
+    getPolicy()
+      .then((r) => setPol(r.policy))
+      .catch(() => {});
   }, [router]);
+
+  function patchPol(p: Partial<Policy>) {
+    setPol((prev) => (prev ? { ...prev, ...p } : prev));
+    updatePolicy(p)
+      .then((r) => setPol(r.policy))
+      .catch(() => {});
+  }
+
+  function toggleFreeze() {
+    if (!pol) return;
+    const next = !pol.agentFrozen;
+    setPol({ ...pol, agentFrozen: next });
+    freezeAgent(next)
+      .then((r) => setPol(r.policy))
+      .catch(() => {});
+  }
 
   function patch(p: Partial<Session>) {
     const next = updateSession(p);
@@ -91,6 +111,61 @@ export default function Settings() {
         />
       </Section>
 
+      {/* Trust Architecture — guardrails + freeze */}
+      <Section label="Agent guardrails" hint="Limits the agent runs inside — even in Automatic mode.">
+        <div
+          className={`flex items-center justify-between rounded-xl border p-3 ${
+            pol?.agentFrozen ? "border-danger/50 bg-danger/10" : "border-border bg-surface"
+          }`}
+        >
+          <div>
+            <p className="text-sm font-medium">{pol?.agentFrozen ? "Agent is frozen" : "Freeze agent"}</p>
+            <p className="text-xs text-muted">
+              {pol?.agentFrozen ? "No payments can be made until you unfreeze." : "Instantly halt all agent money movement."}
+            </p>
+          </div>
+          <button
+            onClick={toggleFreeze}
+            disabled={!pol}
+            className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${
+              pol?.agentFrozen ? "bg-danger text-white" : "border border-border text-danger hover:bg-danger/10"
+            }`}
+          >
+            {pol?.agentFrozen ? "Unfreeze" : "Freeze"}
+          </button>
+        </div>
+
+        <CapField
+          label="Per-payment limit ($)"
+          hint="The most the agent may move in one payment. Above this needs you."
+          minor={pol?.perPaymentCapMinor ?? null}
+          onSave={(minor) => patchPol({ perPaymentCapMinor: minor })}
+        />
+        <CapField
+          label="Daily limit ($)"
+          hint="Total the agent may move per day."
+          minor={pol?.dailyCapMinor ?? null}
+          onSave={(minor) => patchPol({ dailyCapMinor: minor })}
+        />
+
+        <div className="flex items-center justify-between rounded-xl border border-border bg-surface p-3">
+          <div>
+            <p className="text-sm font-medium">Known recipients only</p>
+            <p className="text-xs text-muted">Block payments to anyone you haven&apos;t paid before.</p>
+          </div>
+          <button
+            onClick={() => pol && patchPol({ allowlistOnly: !pol.allowlistOnly })}
+            disabled={!pol}
+            className={`h-6 w-11 shrink-0 rounded-full p-0.5 transition ${pol?.allowlistOnly ? "bg-primary" : "bg-surface2"}`}
+            aria-label="Toggle known recipients only"
+          >
+            <span
+              className={`block h-5 w-5 rounded-full bg-white transition ${pol?.allowlistOnly ? "translate-x-5" : ""}`}
+            />
+          </button>
+        </div>
+      </Section>
+
       {/* Plan */}
       <Section label="Money plan" hint="How each incoming dollar is split.">
         <div className="flex items-center justify-between">
@@ -122,6 +197,45 @@ export default function Settings() {
         </button>
       </Section>
     </main>
+  );
+}
+
+function CapField({
+  label,
+  hint,
+  minor,
+  onSave,
+}: {
+  label: string;
+  hint?: string;
+  minor: number | null;
+  onSave: (minor: number | null) => void;
+}) {
+  const [text, setText] = useState(minor != null ? String(minor / 100) : "");
+  // Keep in sync when the server value loads/changes.
+  useEffect(() => {
+    setText(minor != null ? String(minor / 100) : "");
+  }, [minor]);
+
+  function commit() {
+    const n = parseFloat(text);
+    onSave(text.trim() === "" || isNaN(n) ? null : Math.round(n * 100));
+  }
+
+  return (
+    <div>
+      <label className="label">{label}</label>
+      {hint && <p className="mt-0.5 text-xs text-muted">{hint}</p>}
+      <input
+        value={text}
+        inputMode="decimal"
+        onChange={(e) => setText(e.target.value.replace(/[^\d.]/g, ""))}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        placeholder="No limit"
+        className="mt-1.5 w-full rounded-xl border border-border bg-surface2 px-4 py-2.5 text-sm outline-none placeholder:text-muted focus:border-primary"
+      />
+    </div>
   );
 }
 

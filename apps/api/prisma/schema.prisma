@@ -26,6 +26,11 @@ model User {
   safeWordHash String?
   planEnabled  Boolean   @default(false)
   onboarded    Boolean   @default(false)
+  // Trust Architecture — spending guardrails + agent freeze
+  perPaymentCapMinor Int? // max the agent may move in a single payment (USD minor)
+  dailyCapMinor      Int? // max the agent may move per day (USD minor)
+  allowlistOnly      Boolean @default(false) // only pay known recipients
+  agentFrozen        Boolean @default(false) // kill-switch: halt all agent money movement
   createdAt    DateTime  @default(now())
   receipts     Receipt[]
 }

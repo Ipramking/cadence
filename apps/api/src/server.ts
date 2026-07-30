@@ -7,6 +7,7 @@ import { pipelineRoutes } from "./routes/pipeline.js";
 import { agentRoutes } from "./routes/agent.js";
 import { liveRoutes } from "./routes/live.js";
 import { authRoutes } from "./routes/auth.js";
+import { policyRoutes } from "./routes/policy.js";
 
 import { walletRoutes } from "./routes/wallets.js";
 import { transactionRoutes } from "./routes/transactions.js";
@@ -22,6 +23,7 @@ await app.register(cors, { origin: true });
 
 app.get("/health", async () => ({ status: "ok" }));
 await app.register(authRoutes);
+await app.register(policyRoutes);
 await app.register(overviewRoutes);
 await app.register(pipelineRoutes);
 await app.register(agentRoutes);
