@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Inter, Space_Mono } from "next/font/google";
+import { Instrument_Serif, Inter, Space_Mono } from "next/font/google";
 import "./globals.css";
 
-const display = Bricolage_Grotesque({
+const serif = Instrument_Serif({
   subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
-  variable: "--font-display",
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-serif",
 });
-const body = Inter({ subsets: ["latin"], variable: "--font-body" });
+const sans = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const mono = Space_Mono({
   subsets: ["latin"],
   weight: ["400", "700"],
@@ -26,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+    <html lang="en" className={`${serif.variable} ${sans.variable} ${mono.variable}`}>
       <body>{children}</body>
     </html>
   );

@@ -3,32 +3,25 @@
 @tailwind utilities;
 
 :root {
-  /* Midnight indigo — money never sleeps */
-  --ink: #0c0e1a;
-  --ink-2: #141726;
-  --ink-3: #1c2032;
-  --line: #282c42;
-  --paper: #eceae1;
-  --muted: #8b90a8;
+  --bg: #0a0b12;
+  --surface: #111320;
+  --surface-2: #181b29;
+  --border: #242839;
+  --foreground: #ecedf5;
+  --muted: #9ba1b8;
 
-  /* Dual accent in tension: naira gold (value held) / dollar mint (cross-border) */
-  --naira: #f5b841;
-  --dollar: #57e9ce;
-  --alert: #ff6b6b;
-  --dollar-soft: rgba(87, 233, 206, 0.13);
-  --naira-soft: rgba(245, 184, 65, 0.13);
+  --primary: #5b5bf6;
+  --primary-2: #8280fa;
+  --primary-soft: rgba(91, 91, 246, 0.15);
 
-  /* Aliases so existing components adopt the new palette */
-  --bg: var(--ink);
-  --surface: var(--ink-2);
-  --surface-2: var(--ink-3);
-  --border: var(--line);
-  --text: var(--paper);
-  --accent: var(--dollar);
-  --accent-soft: var(--dollar-soft);
-  --gold: var(--naira);
-  --danger: var(--alert);
-  --warn: var(--naira);
+  --success: #46d08a;
+  --warn: #e6b24d;
+  --danger: #f76d6d;
+
+  /* legacy aliases */
+  --text: var(--foreground);
+  --accent: var(--primary);
+  --accent-soft: var(--primary-soft);
 }
 
 * {
@@ -37,25 +30,27 @@
 
 body {
   background:
-    radial-gradient(900px 500px at 88% -8%, rgba(87, 233, 206, 0.07), transparent),
-    radial-gradient(700px 500px at 8% 108%, rgba(245, 184, 65, 0.05), transparent),
-    var(--ink);
-  color: var(--paper);
+    radial-gradient(760px 460px at 84% -6%, rgba(91, 91, 246, 0.12), transparent),
+    radial-gradient(620px 420px at 6% 106%, rgba(91, 91, 246, 0.06), transparent),
+    var(--bg);
+  color: var(--foreground);
   min-height: 100vh;
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
-h1,
-h2,
-h3 {
-  font-family: var(--font-display);
-  letter-spacing: -0.02em;
+::selection {
+  background: var(--primary);
+  color: #fff;
 }
 
-::selection {
-  background: var(--dollar);
-  color: #06231d;
+/* Editorial serif-italic — the signature header treatment */
+.display {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.02;
 }
 
 @layer components {
@@ -67,45 +62,47 @@ h3 {
     @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs;
     background: var(--surface-2);
     color: var(--muted);
-    font-family: var(--font-mono);
+  }
+  .pill {
+    @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold;
+    background: var(--primary);
+    color: #fff;
+    font-variant-numeric: tabular-nums;
   }
   .stat {
     @apply text-2xl font-semibold tracking-tight;
-    color: var(--paper);
-    font-family: var(--font-mono);
-    font-feature-settings: "tnum" 1;
+    color: var(--foreground);
+    font-variant-numeric: tabular-nums;
   }
   .label {
-    @apply text-xs uppercase;
+    @apply text-xs font-semibold uppercase;
     color: var(--muted);
-    font-family: var(--font-mono);
-    letter-spacing: 0.14em;
+    letter-spacing: 0.13em;
   }
   .eyebrow {
-    @apply inline-flex items-center gap-2 text-xs uppercase;
-    color: var(--dollar);
-    font-family: var(--font-mono);
-    letter-spacing: 0.2em;
+    @apply inline-flex items-center gap-2 text-xs font-semibold uppercase;
+    color: var(--primary-2);
+    letter-spacing: 0.18em;
   }
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition disabled:opacity-50;
-    background: var(--dollar);
-    color: #06231d;
+    background: var(--primary);
+    color: #fff;
   }
   .btn-primary:hover {
-    filter: brightness(1.08);
+    background: var(--primary-2);
   }
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 rounded-full border px-5 py-2.5 text-sm font-medium transition disabled:opacity-50;
-    color: var(--paper);
+    color: var(--foreground);
   }
   .btn-ghost:hover {
-    border-color: var(--dollar);
-    color: var(--dollar);
+    border-color: var(--primary);
+    color: var(--primary-2);
   }
 }
 
-/* ── Cadence waveform: irregular income resolving into a steady pulse ── */
+/* Cadence waveform — kept as a small ambient motif */
 .wave {
   display: flex;
   align-items: flex-end;
@@ -115,14 +112,15 @@ h3 {
 .wave span {
   flex: 1;
   border-radius: 999px;
+  background: var(--primary);
   transform-origin: bottom;
   animation: cadence-bar 1.6s ease-in-out infinite;
 }
 @keyframes cadence-bar {
   0%,
   100% {
-    transform: scaleY(0.28);
-    opacity: 0.55;
+    transform: scaleY(0.3);
+    opacity: 0.5;
   }
   50% {
     transform: scaleY(1);
@@ -130,9 +128,33 @@ h3 {
   }
 }
 
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin-slow {
+  animation: spin-slow 22s linear infinite;
+}
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+.twinkle {
+  animation: twinkle 3.5s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .wave span {
+  .wave span,
+  .spin-slow,
+  .twinkle {
     animation: none;
-    transform: scaleY(0.7);
   }
 }

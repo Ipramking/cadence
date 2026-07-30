@@ -73,9 +73,9 @@ function mapTx(t: ApiTransaction): ActivityView {
 }
 
 const riskStyles: Record<Risk, string> = {
-  clear: "text-dollar bg-[var(--dollar-soft)]",
-  watch: "text-naira bg-[var(--naira-soft)]",
-  high: "text-danger bg-[rgba(255,107,107,0.14)]",
+  clear: "text-primary bg-primary-soft",
+  watch: "text-warn bg-[rgba(230,178,77,0.14)]",
+  high: "text-danger bg-[rgba(247,109,109,0.14)]",
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -265,7 +265,7 @@ export default function Dashboard() {
                 >
                   <span
                     className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${
-                      active ? "bg-dollar text-[#06231d]" : "bg-surface2 text-muted"
+                      active ? "bg-primary text-white" : "bg-surface2 text-muted"
                     }`}
                   >
                     {active ? "✓" : i + 1}

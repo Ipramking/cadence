@@ -106,8 +106,8 @@ export default function Onboarding() {
               <CadenceWave bars={12} />
             </div>
             <span className="eyebrow">Beat one</span>
-            <h1 className="mt-4 text-4xl font-extrabold tracking-tight">
-              Let&apos;s set your rhythm, {name}.
+            <h1 className="mt-4 text-4xl font-bold tracking-tight">
+              Let&apos;s set your <span className="display text-primary2">rhythm</span>, {name}.
             </h1>
             <p className="mt-4 text-muted">
               In two quick steps we&apos;ll spin up your wallets and decide how each
@@ -122,8 +122,8 @@ export default function Onboarding() {
         {step === 1 && (
           <div>
             <span className="eyebrow">Beat two</span>
-            <h1 className="mt-4 text-4xl font-extrabold tracking-tight">
-              Creating your wallets
+            <h1 className="mt-4 text-4xl font-bold tracking-tight">
+              Creating your <span className="display text-primary2">wallets</span>
             </h1>
             <p className="mt-4 text-muted">
               A dollar wallet and a naira wallet, secured with your own key.
@@ -141,7 +141,7 @@ export default function Onboarding() {
                   >
                     <span
                       className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${
-                        done ? "bg-dollar text-[#06231d]" : "bg-surface2 text-muted"
+                        done ? "bg-primary text-white" : "bg-surface2 text-muted"
                       }`}
                     >
                       {done ? "✓" : i + 1}
@@ -164,8 +164,8 @@ export default function Onboarding() {
         {step === 2 && (
           <div>
             <span className="eyebrow">Beat three</span>
-            <h1 className="mt-4 text-4xl font-extrabold tracking-tight">
-              Set your money plan
+            <h1 className="mt-4 text-4xl font-bold tracking-tight">
+              Set your money <span className="display text-primary2">plan</span>
             </h1>
             <p className="mt-4 text-muted">
               How should each incoming dollar be split? The rest stays in your main
@@ -195,7 +195,7 @@ export default function Onboarding() {
                         onChange={(e) =>
                           setPct((p) => ({ ...p, [r.id]: Number(e.target.value) }))
                         }
-                        className="mt-3 w-full accent-[var(--dollar)]"
+                        className="mt-3 w-full accent-[var(--primary)]"
                       />
                     </div>
                   );

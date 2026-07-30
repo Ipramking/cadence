@@ -25,7 +25,9 @@ export default function Auth() {
         <span className="text-lg font-bold tracking-tight">Cadence</span>
       </Link>
 
-      <h1 className="text-3xl font-extrabold tracking-tight">Find your rhythm</h1>
+      <h1 className="text-3xl font-bold tracking-tight">
+        Find your <span className="display text-primary2">rhythm</span>
+      </h1>
       <p className="mt-2 text-sm text-muted">
         Sign in to set up your money. No card, no bank branch.
       </p>
